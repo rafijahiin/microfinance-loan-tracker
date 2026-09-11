@@ -26,9 +26,11 @@ class LoanDerivedFiguresTest {
 
         // 12,000 at zero interest over 4 months: four instalments of 3,000
         // falling due 10 Feb, 10 Mar, 10 Apr and 10 May.
-        loan = new Loan("L-1", b, new BigDecimal("12000"), BigDecimal.ZERO, 4, DISBURSED);
+        loan = new Loan("L-1", b, new BigDecimal("12000"), BigDecimal.ZERO, 4,
+                RepaymentFrequency.MONTHLY, DISBURSED);
         new ScheduleGenerator()
-                .generate(new BigDecimal("12000"), BigDecimal.ZERO, 4, DISBURSED)
+                .generate(new BigDecimal("12000"), BigDecimal.ZERO, 4,
+                        RepaymentFrequency.MONTHLY, DISBURSED)
                 .forEach(loan::addInstalment);
     }
 

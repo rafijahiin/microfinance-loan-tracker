@@ -24,9 +24,14 @@ export default function LoginPage() {
 
   return (
     <div className="login">
-      <h1>Loan Tracker</h1>
-      <p className="sub">Sign in to continue.</p>
       <div className="card">
+        <div className="brand">
+          <span className="mark">LT</span>
+          <span className="name">
+            Loan Portfolio Tracker
+            <small>Two-tier microfinance</small>
+          </span>
+        </div>
         <form onSubmit={onSubmit}>
           {error && <div className="error">{error}</div>}
           <div className="field">
@@ -56,6 +61,10 @@ export default function LoginPage() {
           officer.rangpur@example.org / officer12345
         </div>
       </div>
+      <p className="colophon">
+        An independent portfolio project. Not affiliated with or endorsed by
+        Palli Karma-Sahayak Foundation.
+      </p>
     </div>
   )
 }

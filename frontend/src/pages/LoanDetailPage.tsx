@@ -65,8 +65,10 @@ export default function LoanDetailPage() {
       </p>
       <h1>{l.borrowerName}</h1>
       <p className="sub">
-        {taka(l.principal)} over {l.termMonths} months at{' '}
-        {(Number(l.annualRate) * 100).toFixed(2)}% flat, disbursed {day(l.disbursedOn)}.
+        {taka(l.principal)} over {l.termPeriods}{' '}
+        {l.frequency === 'WEEKLY' ? 'weekly' : 'monthly'} instalments at{' '}
+        {(Number(l.annualRate) * 100).toFixed(2)}% flat, disbursed{' '}
+        {day(l.disbursedOn)}.
       </p>
 
       <div className="tiles">

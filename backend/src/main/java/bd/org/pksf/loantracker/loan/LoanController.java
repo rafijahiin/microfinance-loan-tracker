@@ -36,9 +36,15 @@ public class LoanController {
             @NotNull Long borrowerId,
             @NotBlank @Size(max = 40) String loanNumber,
             @NotNull @DecimalMin(value = "1.00") BigDecimal principal,
+            // A FRACTION, not a percentage: 0.12 is twelve per cent. The upper
+            // bound is what enforces the convention. Without it, a caller who
+            // means twelve per cent and sends 12 gets a loan at 1200 per cent,
+            // or, on an API that divides by 100, a loan at 0.12 per cent. Both
+            // are silent and both are wrong, so the value is rejected instead.
             @NotNull @DecimalMin(value = "0.0000") @DecimalMax(value = "1.0000")
             BigDecimal annualRate,
-            @Min(1) @Max(120) int termMonths,
+            @Min(1) @Max(260) int termPeriods,
+            @NotNull RepaymentFrequency frequency,
             @NotNull LocalDate disbursedOn) {
     }
 
@@ -67,7 +73,8 @@ public class LoanController {
     @Operation(summary = "Disburse a loan and generate its schedule")
     public LoanDto disburse(@Valid @RequestBody DisburseRequest r) {
         Loan loan = loans.disburse(currentUser.get(), r.borrowerId(), r.loanNumber(),
-                r.principal(), r.annualRate(), r.termMonths(), r.disbursedOn());
+                r.principal(), r.annualRate(), r.termPeriods(), r.frequency(),
+                r.disbursedOn());
         return LoanDto.detail(loan, LocalDate.now());
     }
 

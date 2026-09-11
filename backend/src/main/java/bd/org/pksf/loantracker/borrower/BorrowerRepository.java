@@ -21,6 +21,13 @@ public interface BorrowerRepository extends JpaRepository<Borrower, Long> {
            """)
     boolean existsByPartnerIdAndMemberCode(Long partnerId, String memberCode);
 
+    /** Duplicate detection compares hashes, never the number itself. */
+    @Query("""
+           select count(b) > 0 from Borrower b
+           where b.partner.id = :partnerId and b.nationalIdHash = :hash
+           """)
+    boolean existsByPartnerIdAndNationalIdHash(Long partnerId, String hash);
+
     /** Every read is filtered by partner in the query itself rather than loaded
      *  and filtered in Java. Filtering after the fetch is how a paginated
      *  endpoint starts returning half-empty pages, and how a forgotten check

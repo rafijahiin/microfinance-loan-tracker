@@ -17,7 +17,10 @@ export default function BorrowersPage() {
   return (
     <>
       <h1>Members</h1>
-      <p className="sub">Search by name or member code.</p>
+      <p className="sub">
+        Search by name or member code. National ID numbers are stored only as a
+        keyed hash, so only the last four digits can ever be displayed.
+      </p>
 
       <form
         className="row-actions"
@@ -53,6 +56,7 @@ export default function BorrowersPage() {
               <tr>
                 <th>Code</th>
                 <th>Name</th>
+                <th>National ID</th>
                 <th>Village</th>
                 <th>District</th>
                 <th>Partner</th>
@@ -64,6 +68,9 @@ export default function BorrowersPage() {
                 <tr key={b.id}>
                   <td>{b.memberCode}</td>
                   <td>{b.name}</td>
+                  {/* Masked at the API, not here. The browser never receives
+                      the full number, so a screenshot cannot leak it. */}
+                  <td className="masked">{b.nationalIdMasked ?? '\u2014'}</td>
                   <td>{b.village ?? '\u2014'}</td>
                   <td>{b.district}</td>
                   <td>{b.partnerCode ?? '\u2014'}</td>

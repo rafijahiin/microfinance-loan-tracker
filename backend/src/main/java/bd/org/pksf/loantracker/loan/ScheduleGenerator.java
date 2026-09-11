@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Builds a flat-rate repayment schedule.
+ * Builds a flat-rate repayment schedule, weekly or monthly.
  *
  * Flat rate, not declining balance: interest is charged on the original
  * principal for the whole term, so every instalment carries the same interest.
@@ -32,35 +32,43 @@ import java.util.List;
 @Component
 public class ScheduleGenerator {
 
-    private static final BigDecimal MONTHS_PER_YEAR = new BigDecimal("12");
-
     public List<Instalment> generate(BigDecimal principal, BigDecimal annualRate,
-                                     int termMonths, LocalDate disbursedOn) {
+                                     int termPeriods, RepaymentFrequency frequency,
+                                     LocalDate disbursedOn) {
         if (!Money.isPositive(principal)) {
             throw new BusinessRuleException("Principal must be greater than zero");
         }
         if (annualRate == null || annualRate.compareTo(BigDecimal.ZERO) < 0) {
             throw new BusinessRuleException("Annual rate cannot be negative");
         }
-        if (termMonths < 1) {
-            throw new BusinessRuleException("Term must be at least one month");
+        if (termPeriods < 1) {
+            throw new BusinessRuleException("Term must be at least one instalment");
+        }
+        if (frequency == null) {
+            throw new BusinessRuleException("A repayment frequency is required");
         }
 
         BigDecimal p = Money.normalise(principal);
-        BigDecimal n = BigDecimal.valueOf(termMonths);
+        BigDecimal n = BigDecimal.valueOf(termPeriods);
 
-        BigDecimal years = n.divide(MONTHS_PER_YEAR, 10, RoundingMode.HALF_UP);
+        // Term in YEARS, derived from the frequency. Flat interest is priced
+        // per year, so 40 weekly instalments must become 40/52 of a year and
+        // not 40/12. Getting this wrong overstates the service charge on every
+        // weekly loan by more than four times.
+        BigDecimal years = n.divide(
+                BigDecimal.valueOf(frequency.getPeriodsPerYear()), 10,
+                RoundingMode.HALF_UP);
         BigDecimal totalInterest = Money.normalise(p.multiply(annualRate).multiply(years));
 
         BigDecimal basePrincipal = p.divide(n, Money.SCALE, RoundingMode.DOWN);
         BigDecimal baseInterest = totalInterest.divide(n, Money.SCALE, RoundingMode.DOWN);
 
-        BigDecimal allocatedPrincipal = basePrincipal.multiply(BigDecimal.valueOf(termMonths - 1L));
-        BigDecimal allocatedInterest = baseInterest.multiply(BigDecimal.valueOf(termMonths - 1L));
+        BigDecimal allocatedPrincipal = basePrincipal.multiply(BigDecimal.valueOf(termPeriods - 1L));
+        BigDecimal allocatedInterest = baseInterest.multiply(BigDecimal.valueOf(termPeriods - 1L));
 
-        List<Instalment> schedule = new ArrayList<>(termMonths);
-        for (int i = 1; i <= termMonths; i++) {
-            boolean last = (i == termMonths);
+        List<Instalment> schedule = new ArrayList<>(termPeriods);
+        for (int i = 1; i <= termPeriods; i++) {
+            boolean last = (i == termPeriods);
             BigDecimal principalDue = last
                     ? Money.normalise(p.subtract(allocatedPrincipal))
                     : basePrincipal;
@@ -68,10 +76,7 @@ public class ScheduleGenerator {
                     ? Money.normalise(totalInterest.subtract(allocatedInterest))
                     : baseInterest;
 
-            // plusMonths clamps a month-end date to the shortest month, so a
-            // loan disbursed on the 31st falls due on the 28th or 30th rather
-            // than rolling into the following month.
-            schedule.add(new Instalment(i, disbursedOn.plusMonths(i),
+            schedule.add(new Instalment(i, frequency.dueDate(disbursedOn, i),
                     principalDue, interestDue));
         }
         return schedule;

@@ -51,6 +51,11 @@ app:
     # service ends up signing production tokens with a key anyone can read.
     secret: ${JWT_SECRET:}
     expiry-minutes: ${JWT_EXPIRY_MINUTES:120}
+  nid:
+    # Same discipline as the signing key: no default. A committed pepper is a
+    # published pepper, and every national ID hash computed under it becomes
+    # enumerable again.
+    pepper: ${NID_PEPPER:}
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
   seed-demo-data: ${SEED_DEMO_DATA:false}

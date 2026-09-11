@@ -26,6 +26,8 @@ app:
   jwt:
     secret: test-only-signing-key-not-used-anywhere-real-0123456789
     expiry-minutes: 60
+  nid:
+    pepper: test-only-pepper-not-used-anywhere-real
   cors:
     allowed-origins: http://localhost:5173
   seed-demo-data: false

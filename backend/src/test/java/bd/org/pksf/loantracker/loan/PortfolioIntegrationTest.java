@@ -60,8 +60,9 @@ class PortfolioIntegrationTest extends IntegrationTestBase {
         Borrower b = borrowers.save(new Borrower(po, memberCode,
                 "Member " + memberCode, po.getDistrict(), disbursedOn.minusMonths(1)));
         Loan loan = new Loan(loanNo, b, new BigDecimal(principal), BigDecimal.ZERO,
-                term, disbursedOn);
-        scheduleGenerator.generate(loan.getPrincipal(), BigDecimal.ZERO, term, disbursedOn)
+                term, RepaymentFrequency.MONTHLY, disbursedOn);
+        scheduleGenerator.generate(loan.getPrincipal(), BigDecimal.ZERO, term,
+                        RepaymentFrequency.MONTHLY, disbursedOn)
                 .forEach(loan::addInstalment);
         loans.save(loan);
     }

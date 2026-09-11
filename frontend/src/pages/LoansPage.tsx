@@ -40,6 +40,7 @@ export default function LoansPage() {
               <tr>
                 <th>Loan</th>
                 <th>Member</th>
+                <th>Product</th>
                 <th>Disbursed</th>
                 <th className="num">Principal</th>
                 <th className="num">Outstanding</th>
@@ -52,6 +53,10 @@ export default function LoansPage() {
                 <tr key={loan.id}>
                   <td><Link to={`/loans/${loan.id}`}>{loan.loanNumber}</Link></td>
                   <td>{loan.borrowerName}</td>
+                  <td>
+                    {loan.termPeriods}{' '}
+                    {loan.frequency === 'WEEKLY' ? 'weekly' : 'monthly'}
+                  </td>
                   <td>{day(loan.disbursedOn)}</td>
                   <td className="num">{taka(loan.principal)}</td>
                   <td className="num">{taka(loan.outstanding)}</td>

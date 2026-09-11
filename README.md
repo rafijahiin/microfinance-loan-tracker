@@ -8,7 +8,7 @@ exactly one partner, and that boundary is what authorisation is drawn along.
 Spring Boot 3 and Java 21 on the back, React and TypeScript on the front,
 PostgreSQL underneath, the whole stack up with one command.
 
-**61 tests, all passing.** `mvn test` needs nothing but a JDK.
+**84 tests, all passing.** `mvn test` needs nothing but a JDK.
 
 ---
 
@@ -33,11 +33,19 @@ Demo accounts, seeded when `SEED_DEMO_DATA=true`:
 Sign in as an officer, then as the administrator, and compare the portfolio
 figures. That difference is the authorisation model working.
 
-### Without Docker
+### Without Docker, or without PostgreSQL
 
 ```bash
-cd backend  && JWT_SECRET=$(openssl rand -base64 48) mvn spring-boot:run
+# Needs only a JDK: in-memory H2, demo data, nothing to install.
+cd backend  && mvn spring-boot:run -Plocal -Dspring-boot.run.profiles=local
 cd frontend && npm install && npm run dev
+```
+
+Against a real PostgreSQL instead:
+
+```bash
+cd backend && JWT_SECRET=$(openssl rand -base64 48) \
+              NID_PEPPER=$(openssl rand -base64 32) mvn spring-boot:run
 ```
 
 The Vite dev server proxies `/api` to `localhost:8080`, so the browser stays on
@@ -46,7 +54,7 @@ one origin and CORS is not involved in development.
 ### Tests
 
 ```bash
-cd backend && mvn test          # 61 tests
+cd backend && mvn test          # 84 tests
 cd frontend && npm run typecheck
 ```
 
@@ -59,7 +67,12 @@ repayment** and it settles against that schedule, oldest instalment first.
 **Read the portfolio** and you get outstanding, arrears and PAR 30, scoped to
 whoever is asking.
 
-### Flat-rate schedules
+### Weekly or monthly, flat rate
+
+A loan repays **weekly** or **monthly**. Weekly is the norm for group lending
+here, because collection happens at the weekly samity meeting; monthly suits
+larger individual and enterprise loans. The frequency lives on the loan, not in
+the generator's assumptions.
 
 Interest is charged on the original principal for the whole term, so every
 instalment carries the same service charge. This is how a group loan is quoted
@@ -81,6 +94,13 @@ impossible to reconcile across a portfolio.
 Month-end dates clamp rather than roll: a loan disbursed on 31 January falls due
 on 28 February, not 3 March.
 
+**The term is converted to years using the loan's own frequency.** Forty weekly
+instalments is 40/52 of a year, not 40/12. Pricing weekly terms on a monthly
+divisor would overcharge every weekly loan by more than four times, which is
+the single most damaging thing that can go wrong when a monthly product gains a
+weekly sibling. There is a test pinned to a figure worked out by hand:
+30,000 at 12 per cent flat over 40 weeks is 2,769.23 of interest.
+
 ### Oldest-first allocation
 
 A payment settles the oldest unpaid instalment before any later one. Applying it
@@ -91,6 +111,29 @@ and the arrears age never resets.
 **Overpayment is refused, not held as a credit.** A member handing over more
 than the loan owes is nearly always a keying error at the branch, and turning it
 into an unexplained credit balance is how a ledger stops reconciling.
+
+### The national ID is never stored
+
+A member's NID is the most sensitive field here: a lifelong government
+identifier, reused across every service she touches. A leaked lender database
+full of them is materially worse than one full of names. So the number itself is
+never persisted. Two derived values are:
+
+- a **keyed hash**, which duplicate detection compares, and
+- the **last four digits**, which staff see when confirming identity.
+
+HMAC-SHA256 with a secret pepper, not a bare digest. A plain SHA-256 of a
+national ID is not protection: the format is short and structured enough that
+the whole space can be enumerated and matched against a stolen table in minutes.
+The pepper is not in the database, so the table alone gives an attacker nothing
+to match against. It is required and has no default, for the same reason the
+signing key has none.
+
+Numbers are normalised before hashing, so `1990 1234 56789` and `1990-1234-56789`
+collide as they should. Uniqueness is **per partner**: a woman can genuinely be a
+member of two organisations, and a global constraint would both block a
+legitimate enrolment and leak, through the rejection, that she is a member
+elsewhere. The duplicate error deliberately does not echo the number back.
 
 ### PAR 30
 
@@ -154,6 +197,12 @@ tokens with a key that is public on GitHub.
 Distinguishing them turns the endpoint into a way to enumerate who holds an
 account. There is a test asserting the two messages are byte-identical.
 
+**The interest rate is a fraction, and the API enforces it.** `0.12` is twelve
+per cent, and the field is capped at `1.0000`. Without that bound a caller who
+means twelve per cent and sends `12` gets a loan at 1200 per cent, or, on an API
+that divides by 100 internally, a loan at 0.12 per cent. Both are silent and
+both are wrong, so the value is rejected rather than quietly accepted.
+
 **A receipt number can only be posted once.** Without that, a retry after a
 timeout collects the same money twice in the ledger.
 
@@ -190,7 +239,7 @@ frontend/src/
 | `GET` | `/api/borrowers/{id}/loans` | |
 | `GET` | `/api/loans?status=` | Summary rows, no schedule |
 | `GET` | `/api/loans/{id}` | With the full schedule |
-| `POST` | `/api/loans` | Disburse and generate the schedule |
+| `POST` | `/api/loans` | Disburse; takes `termPeriods` and `frequency` |
 | `POST` | `/api/loans/{id}/repayments` | Settles oldest first |
 | `GET` | `/api/loans/{id}/repayments` | |
 | `POST` | `/api/loans/{id}/write-off` | Admin only |
@@ -218,7 +267,9 @@ can quote SQL, table names or borrower data. The detail goes to the log.
 
 | Suite | What it pins down |
 |---|---|
-| `ScheduleGeneratorTest` | Flat interest, exact reconciliation, remainder placement, month-end clamping, rejected inputs |
+| `ScheduleGeneratorTest` | Flat interest, exact reconciliation, remainder placement, month-end clamping, weekly vs monthly pricing, rejected inputs |
+| `NationalIdProtectorTest` | Determinism, that the pepper participates, normalisation, masking, refusal of a weak pepper |
+| `BorrowerNationalIdIntegrationTest` | The raw number is never stored or returned, duplicates refused per partner, the error is not a membership oracle |
 | `InstalmentTest` | Part payment, settlement, surplus left for the next row, overdue boundaries |
 | `LoanDerivedFiguresTest` | Outstanding against overdue, arrears measured from the oldest unpaid instalment |
 | `AuthIntegrationTest` | Token issue, partner claim, identical failure messages, disabled accounts, tampered tokens |
@@ -250,6 +301,29 @@ the stack comes up under compose, not by the test suite.
 
 ---
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs three jobs on every push and pull request:
+backend `mvn verify`, frontend `npm ci` then typecheck then build, and a build
+of both container images.
+
+`npm ci` rather than `npm install`: it installs exactly what the lockfile pins
+and fails if the two disagree, so CI keeps testing what a developer actually
+gets. The image build job exists because a Dockerfile that has drifted from the
+source tree is otherwise only discovered by whoever next runs `docker compose`.
+
+## A note on the visual identity
+
+The palette is PKSF's green, `#00783c`, sampled from their master logo, and the
+typefaces are the Quicksand and Roboto pairing used on pksf.org.bd. The domain
+this application models is theirs, so it seemed right to look like it belongs to
+that world.
+
+Deliberately not used: the hexagonal emblem, and the organisation's name as this
+application's own. **This is an independent portfolio project, not affiliated
+with, endorsed by, or produced for Palli Karma-Sahayak Foundation.** That line
+appears in the running application too.
+
 ## What I would do next
 
 - **Testcontainers in CI**, keeping H2 for the fast local loop.
@@ -261,6 +335,10 @@ the stack comes up under compose, not by the test suite.
 - **Recoveries against written-off loans**, which are posted separately from a
   schedule and are currently refused outright.
 - **Declining-balance products** alongside flat rate. The schedule generator is
-  already isolated behind one interface for this reason.
+  already isolated behind one interface, and adding the weekly frequency proved
+  the seam holds.
+- **Rotating the national ID pepper.** Today a new pepper invalidates every
+  existing hash, so a rotation needs the numbers re-supplied. A versioned
+  pepper column would let old and new coexist during a migration.
 - **Rate limiting on `/api/auth/login`.** Constant-time failure messages stop
   enumeration; they do not stop brute force.

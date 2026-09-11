@@ -1,6 +1,7 @@
 export type Role = 'ADMIN' | 'PO_OFFICER'
 
 export type LoanStatus = 'ACTIVE' | 'CLOSED' | 'WRITTEN_OFF'
+export type RepaymentFrequency = 'WEEKLY' | 'MONTHLY'
 export type InstalmentStatus = 'PENDING' | 'PARTIAL' | 'PAID'
 
 export interface LoginResponse {
@@ -26,6 +27,8 @@ export interface Borrower {
   partnerCode: string | null
   memberCode: string
   name: string
+  /** Last four digits only. The raw number is never sent by the API. */
+  nationalIdMasked: string | null
   phone: string | null
   village: string | null
   union: string | null
@@ -53,7 +56,8 @@ export interface Loan {
   borrowerName: string
   principal: string
   annualRate: string
-  termMonths: number
+  termPeriods: number
+  frequency: RepaymentFrequency
   disbursedOn: string
   status: LoanStatus
   totalDue: string

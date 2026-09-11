@@ -1,0 +1,37 @@
+# Local demonstration profile: in-memory H2, demo data, no database to install.
+#
+#   mvn spring-boot:run -Plocal -Dspring-boot.run.profiles=local
+#
+# The Maven profile of the same name is what puts H2 on the classpath, so the
+# default build and the shipped jar do not contain it.
+#
+# The signing key below is a throwaway for this profile only. It is NOT a
+# fallback: the default configuration still has no secret at all and the
+# application refuses to start without one, which is the behaviour that matters
+# for anything deployed. This key only ever loads when the local profile is
+# named explicitly on the command line.
+spring:
+  datasource:
+    url: jdbc:h2:mem:loantracker;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      # The Flyway migration is PostgreSQL-specific (it uses a partial index),
+      # so in this profile the schema is generated from the mappings instead.
+      # MigrationMatchesEntitiesTest is what keeps the two honest.
+      ddl-auto: create-drop
+    open-in-view: false
+  flyway:
+    enabled: false
+
+app:
+  jwt:
+    secret: local-profile-only-throwaway-key-not-a-production-fallback
+    expiry-minutes: 240
+  nid:
+    pepper: local-profile-only-throwaway-pepper-not-a-fallback
+  cors:
+    allowed-origins: http://localhost:5173
+  seed-demo-data: true

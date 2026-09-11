@@ -30,6 +30,16 @@ public class Borrower extends Auditable {
     @Column(nullable = false, length = 200)
     private String name;
 
+    /** Keyed hash of the national ID. The number itself is never stored; see
+     *  NationalIdProtector. Unique per partner, so the same woman cannot be
+     *  enrolled twice under one organisation. */
+    @Column(name = "national_id_hash", length = 64)
+    private String nationalIdHash;
+
+    /** What staff see: the last four digits, masked to the original length. */
+    @Column(name = "national_id_masked", length = 40)
+    private String nationalIdMasked;
+
     @Column(length = 20)
     private String phone;
 
@@ -80,6 +90,21 @@ public class Borrower extends Auditable {
 
     public String getName() {
         return name;
+    }
+
+    public String getNationalIdHash() {
+        return nationalIdHash;
+    }
+
+    public String getNationalIdMasked() {
+        return nationalIdMasked;
+    }
+
+    /** Set together, always. A hash without its mask leaves staff unable to
+     *  confirm identity; a mask without its hash defeats duplicate detection. */
+    public void setNationalId(String hash, String masked) {
+        this.nationalIdHash = hash;
+        this.nationalIdMasked = masked;
     }
 
     public String getPhone() {

@@ -11,7 +11,8 @@ public record LoanDto(
         String borrowerName,
         BigDecimal principal,
         BigDecimal annualRate,
-        int termMonths,
+        int termPeriods,
+        RepaymentFrequency frequency,
         LocalDate disbursedOn,
         LoanStatus status,
         BigDecimal totalDue,
@@ -38,8 +39,8 @@ public record LoanDto(
                 l.getId(), l.getLoanNumber(),
                 l.getBorrower() == null ? null : l.getBorrower().getId(),
                 l.getBorrower() == null ? null : l.getBorrower().getName(),
-                l.getPrincipal(), l.getAnnualRate(), l.getTermMonths(),
-                l.getDisbursedOn(), l.getStatus(),
+                l.getPrincipal(), l.getAnnualRate(), l.getTermPeriods(),
+                l.getFrequency(), l.getDisbursedOn(), l.getStatus(),
                 l.getTotalDue(), l.getTotalPaid(), l.getOutstanding(),
                 l.getOverdueAmount(asOf), l.getDaysInArrears(asOf), schedule);
     }

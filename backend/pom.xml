@@ -103,6 +103,25 @@
     </dependency>
   </dependencies>
 
+
+  <profiles>
+    <!-- `mvn spring-boot:run -Plocal -Dspring-boot.run.profiles=local` starts
+         the service against in-memory H2 with demo data, so it can be run and
+         looked at with nothing installed but a JDK. H2 is confined to this
+         profile: the default build, and therefore the deployed jar, does not
+         carry it. -->
+    <profile>
+      <id>local</id>
+      <dependencies>
+        <dependency>
+          <groupId>com.h2database</groupId>
+          <artifactId>h2</artifactId>
+          <scope>runtime</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+  </profiles>
+
   <build>
     <plugins>
       <plugin>

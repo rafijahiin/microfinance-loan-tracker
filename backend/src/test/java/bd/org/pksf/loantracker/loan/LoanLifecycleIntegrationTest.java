@@ -37,7 +37,8 @@ class LoanLifecycleIntegrationTest extends IntegrationTestBase {
                                 int term, LocalDate on) {
         return """
                {"borrowerId":%d,"loanNumber":"%s","principal":%s,
-                "annualRate":%s,"termMonths":%d,"disbursedOn":"%s"}
+                "annualRate":%s,"termPeriods":%d,"frequency":"MONTHLY",
+                "disbursedOn":"%s"}
                """.formatted(member.getId(), loanNo, principal, rate, term, on);
     }
 
@@ -235,13 +236,14 @@ class LoanLifecycleIntegrationTest extends IntegrationTestBase {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                  {"borrowerId":%d,"loanNumber":"","principal":-5,
-                                  "annualRate":2.0,"termMonths":0,"disbursedOn":"2026-01-15"}
+                                  "annualRate":2.0,"termPeriods":0,
+                                  "frequency":"MONTHLY","disbursedOn":"2026-01-15"}
                                  """.formatted(member.getId())))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.loanNumber").isNotEmpty())
                 .andExpect(jsonPath("$.fieldErrors.principal").isNotEmpty())
                 .andExpect(jsonPath("$.fieldErrors.annualRate").isNotEmpty())
-                .andExpect(jsonPath("$.fieldErrors.termMonths").isNotEmpty());
+                .andExpect(jsonPath("$.fieldErrors.termPeriods").isNotEmpty());
     }
 
     @Test

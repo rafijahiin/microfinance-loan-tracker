@@ -2,6 +2,7 @@ package bd.org.pksf.loantracker.config;
 
 import bd.org.pksf.loantracker.borrower.Borrower;
 import bd.org.pksf.loantracker.borrower.BorrowerRepository;
+import bd.org.pksf.loantracker.borrower.NationalIdProtector;
 import bd.org.pksf.loantracker.loan.*;
 import bd.org.pksf.loantracker.partner.PartnerOrganisation;
 import bd.org.pksf.loantracker.partner.PartnerRepository;
@@ -42,9 +43,10 @@ public class DemoDataSeeder {
                                           LoanRepository loans,
                                           RepaymentRepository repayments,
                                           ScheduleGenerator scheduleGenerator,
+                                          NationalIdProtector nid,
                                           PasswordEncoder encoder) {
         return args -> seed(partners, users, borrowers, loans, repayments,
-                scheduleGenerator, encoder);
+                scheduleGenerator, nid, encoder);
     }
 
     @Transactional
@@ -52,6 +54,7 @@ public class DemoDataSeeder {
                         BorrowerRepository borrowers, LoanRepository loans,
                         RepaymentRepository repayments,
                         ScheduleGenerator scheduleGenerator,
+                        NationalIdProtector nid,
                         PasswordEncoder encoder) {
 
         if (partners.count() > 0) {
@@ -78,35 +81,47 @@ public class DemoDataSeeder {
         // A seed where every loan is healthy makes the PAR figure untestable by
         // eye and hides whatever the arrears logic gets wrong.
         record Seed(PartnerOrganisation po, String code, String name, String village,
-                    String loanNo, String principal, String rate, int term,
+                    String nid, String loanNo, String principal, String rate,
+                    int term, RepaymentFrequency frequency,
                     int disbursedMonthsAgo, int instalmentsPaid) {
         }
 
+        // A deliberate mix of weekly and monthly, because the portfolio figures
+        // are only convincing if both products appear in them.
         List<Seed> seeds = List.of(
-                new Seed(shomota, "M-0001", "Rahima Begum", "Kaunia",
-                        "L-2026-0001", "30000", "0.1200", 12, 13, 12),
-                new Seed(shomota, "M-0002", "Shafiqul Islam", "Pirgacha",
-                        "L-2026-0002", "50000", "0.1200", 12, 4, 4),
-                new Seed(shomota, "M-0003", "Nasima Akter", "Badarganj",
-                        "L-2026-0003", "25000", "0.1500", 10, 5, 3),
-                new Seed(nodi, "M-0001", "Jahanara Khatun", "Mehendiganj",
-                        "L-2026-0004", "40000", "0.1200", 12, 8, 3),
-                new Seed(nodi, "M-0002", "Abdul Mannan", "Hizla",
-                        "L-2026-0005", "60000", "0.1000", 18, 2, 2),
-                new Seed(nodi, "M-0003", "Rokeya Sultana", "Muladi",
-                        "L-2026-0006", "35000", "0.1200", 12, 1, 0));
+                new Seed(shomota, "M-0001", "Rahima Begum", "Kaunia", "1990111000001",
+                        "L-2026-0001", "30000", "0.1200", 40, RepaymentFrequency.WEEKLY,
+                        13, 40),
+                new Seed(shomota, "M-0002", "Shafiqul Islam", "Pirgacha", "1988222000002",
+                        "L-2026-0002", "50000", "0.1200", 12, RepaymentFrequency.MONTHLY,
+                        4, 4),
+                new Seed(shomota, "M-0003", "Nasima Akter", "Badarganj", "1995333000003",
+                        "L-2026-0003", "25000", "0.1500", 40, RepaymentFrequency.WEEKLY,
+                        5, 12),
+                new Seed(nodi, "M-0001", "Jahanara Khatun", "Mehendiganj", "1992444000004",
+                        "L-2026-0004", "40000", "0.1200", 12, RepaymentFrequency.MONTHLY,
+                        8, 3),
+                new Seed(nodi, "M-0002", "Abdul Mannan", "Hizla", "1985555000005",
+                        "L-2026-0005", "60000", "0.1000", 18, RepaymentFrequency.MONTHLY,
+                        2, 2),
+                new Seed(nodi, "M-0003", "Rokeya Sultana", "Muladi", "1998666000006",
+                        "L-2026-0006", "35000", "0.1200", 26, RepaymentFrequency.WEEKLY,
+                        1, 0));
 
         int receipt = 1;
         for (Seed s : seeds) {
             LocalDate disbursed = today.minusMonths(s.disbursedMonthsAgo());
-            Borrower b = borrowers.save(new Borrower(s.po(), s.code(), s.name(),
-                    s.po().getDistrict(), disbursed.minusMonths(2)));
+            Borrower b = new Borrower(s.po(), s.code(), s.name(),
+                    s.po().getDistrict(), disbursed.minusMonths(2));
             b.setVillage(s.village());
+            b.setNationalId(nid.hash(s.nid()), nid.mask(s.nid()));
+            b = borrowers.save(b);
 
             Loan loan = new Loan(s.loanNo(), b, new BigDecimal(s.principal()),
-                    new BigDecimal(s.rate()), s.term(), disbursed);
+                    new BigDecimal(s.rate()), s.term(), s.frequency(), disbursed);
             scheduleGenerator.generate(loan.getPrincipal(), loan.getAnnualRate(),
-                    loan.getTermMonths(), disbursed).forEach(loan::addInstalment);
+                            loan.getTermPeriods(), loan.getFrequency(), disbursed)
+                    .forEach(loan::addInstalment);
             loans.save(loan);
 
             for (int i = 0; i < s.instalmentsPaid(); i++) {

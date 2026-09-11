@@ -75,8 +75,8 @@ class PartnerScopingIntegrationTest extends IntegrationTestBase {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                  {"partnerId":%d,"memberCode":"M-9999",
-                                  "name":"Planted Member","district":"Barishal",
-                                  "enrolledOn":"2026-01-01"}
+                                  "name":"Planted Member","nationalId":"1991777000007",
+                                  "district":"Barishal","enrolledOn":"2026-01-01"}
                                  """.formatted(barishal.getId())))
                 .andExpect(status().isNotFound());
     }

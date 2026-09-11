@@ -34,8 +34,15 @@ public class Loan extends Auditable {
     @Column(name = "annual_rate", nullable = false, precision = 6, scale = 4)
     private BigDecimal annualRate;
 
-    @Column(name = "term_months", nullable = false)
-    private int termMonths;
+    /** Number of instalments, not months. What a period means is decided by
+     *  `frequency`: 40 weekly periods and 40 monthly periods are different
+     *  loans, and the old termMonths field could not express the first. */
+    @Column(name = "term_periods", nullable = false)
+    private int termPeriods;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private RepaymentFrequency frequency = RepaymentFrequency.MONTHLY;
 
     @Column(name = "disbursed_on", nullable = false)
     private LocalDate disbursedOn;
@@ -55,12 +62,14 @@ public class Loan extends Auditable {
     }
 
     public Loan(String loanNumber, Borrower borrower, BigDecimal principal,
-                BigDecimal annualRate, int termMonths, LocalDate disbursedOn) {
+                BigDecimal annualRate, int termPeriods,
+                RepaymentFrequency frequency, LocalDate disbursedOn) {
         this.loanNumber = loanNumber;
         this.borrower = borrower;
         this.principal = Money.normalise(principal);
         this.annualRate = annualRate;
-        this.termMonths = termMonths;
+        this.termPeriods = termPeriods;
+        this.frequency = frequency;
         this.disbursedOn = disbursedOn;
     }
 
@@ -89,8 +98,12 @@ public class Loan extends Auditable {
         return annualRate;
     }
 
-    public int getTermMonths() {
-        return termMonths;
+    public int getTermPeriods() {
+        return termPeriods;
+    }
+
+    public RepaymentFrequency getFrequency() {
+        return frequency;
     }
 
     public LocalDate getDisbursedOn() {

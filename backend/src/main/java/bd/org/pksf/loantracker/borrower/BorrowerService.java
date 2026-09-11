@@ -19,18 +19,21 @@ public class BorrowerService {
     private final BorrowerRepository borrowers;
     private final PartnerRepository partners;
     private final AccessGuard guard;
+    private final NationalIdProtector nid;
 
     public BorrowerService(BorrowerRepository borrowers, PartnerRepository partners,
-                           AccessGuard guard) {
+                           AccessGuard guard, NationalIdProtector nid) {
         this.borrowers = borrowers;
         this.partners = partners;
         this.guard = guard;
+        this.nid = nid;
     }
 
     @Transactional
     public Borrower enrol(AuthenticatedUser caller, Long partnerId, String memberCode,
-                          String name, String district, LocalDate enrolledOn,
-                          String phone, String village, String union, String upazila) {
+                          String name, String nationalId, String district,
+                          LocalDate enrolledOn, String phone, String village,
+                          String union, String upazila) {
 
         guard.assertCanAccess(caller, partnerId, "Partner", partnerId);
 
@@ -49,7 +52,19 @@ public class BorrowerService {
             throw new BusinessRuleException("Enrolment cannot be dated in the future");
         }
 
+        // Hash first: an invalid number should be rejected before anything is
+        // written, and the raw value must not survive past this line.
+        String hash = nid.hash(nationalId);
+        if (borrowers.existsByPartnerIdAndNationalIdHash(partnerId, hash)) {
+            // Deliberately does NOT echo the number back. Confirming which NID
+            // is already enrolled turns the endpoint into a membership oracle.
+            throw new BusinessRuleException(
+                    "A member with this national ID is already enrolled under "
+                    + "this partner");
+        }
+
         Borrower b = new Borrower(partner, memberCode, name, district, enrolledOn);
+        b.setNationalId(hash, nid.mask(nationalId));
         b.setPhone(phone);
         b.setVillage(village);
         b.setUnion(union);

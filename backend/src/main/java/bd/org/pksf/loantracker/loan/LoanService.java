@@ -38,8 +38,8 @@ public class LoanService {
 
     @Transactional
     public Loan disburse(AuthenticatedUser caller, Long borrowerId, String loanNumber,
-                         BigDecimal principal, BigDecimal annualRate, int termMonths,
-                         LocalDate disbursedOn) {
+                         BigDecimal principal, BigDecimal annualRate, int termPeriods,
+                         RepaymentFrequency frequency, LocalDate disbursedOn) {
 
         Borrower borrower = borrowers.findByIdWithPartner(borrowerId)
                 .orElseThrow(() -> new NotFoundException("Borrower", borrowerId));
@@ -54,8 +54,9 @@ public class LoanService {
         }
 
         Loan loan = new Loan(loanNumber, borrower, principal, annualRate,
-                termMonths, disbursedOn);
-        scheduleGenerator.generate(principal, annualRate, termMonths, disbursedOn)
+                termPeriods, frequency, disbursedOn);
+        scheduleGenerator.generate(principal, annualRate, termPeriods, frequency,
+                        disbursedOn)
                 .forEach(loan::addInstalment);
 
         return loans.save(loan);

@@ -38,6 +38,8 @@ public class BorrowerController {
             @NotNull Long partnerId,
             @NotBlank @Size(max = 30) String memberCode,
             @NotBlank @Size(max = 200) String name,
+            // Sent once, at enrolment, and never stored. See NationalIdProtector.
+            @NotBlank @Size(max = 30) String nationalId,
             @NotBlank @Size(max = 100) String district,
             @NotNull LocalDate enrolledOn,
             @Size(max = 20) String phone,
@@ -73,7 +75,7 @@ public class BorrowerController {
     @Operation(summary = "Enrol a member under a partner organisation")
     public BorrowerDto enrol(@Valid @RequestBody EnrolRequest r) {
         return BorrowerDto.from(service.enrol(currentUser.get(), r.partnerId(),
-                r.memberCode(), r.name(), r.district(), r.enrolledOn(),
-                r.phone(), r.village(), r.union(), r.upazila()));
+                r.memberCode(), r.name(), r.nationalId(), r.district(),
+                r.enrolledOn(), r.phone(), r.village(), r.union(), r.upazila()));
     }
 }

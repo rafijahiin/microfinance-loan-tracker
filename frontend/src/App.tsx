@@ -12,7 +12,13 @@ function Chrome({ children }: { children: React.ReactNode }) {
     <>
       <header className="bar">
         <div className="inner">
-          <span className="brand">Loan Tracker</span>
+          <span className="brand">
+            <span className="mark">LT</span>
+            <span className="name">
+              Loan Portfolio Tracker
+              <small>Two-tier microfinance</small>
+            </span>
+          </span>
           <nav>
             <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')}>
               Portfolio
@@ -33,7 +39,16 @@ function Chrome({ children }: { children: React.ReactNode }) {
           </span>
         </div>
       </header>
-      <div className="shell">{children}</div>
+      <div className="shell">
+        {children}
+        <p className="colophon">
+          An independent portfolio project. Not affiliated with, endorsed by, or
+          produced for Palli Karma-Sahayak Foundation. The palette and
+          typefaces follow PKSF&rsquo;s published visual identity because the
+          domain is theirs; the emblem and the organisation&rsquo;s name are
+          deliberately not used.
+        </p>
+      </div>
     </>
   )
 }
