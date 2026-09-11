@@ -1,0 +1,26 @@
+# Java
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+
+# Node
+node_modules/
+dist/
+*.local
+
+# Environment: .env holds the signing key and must never be committed.
+.env
+.env.local
+.env.*.local
+
+# Editors
+.idea/
+.vscode/
+*.iml
+*.swp
+.DS_Store
+
+# Logs
+*.log

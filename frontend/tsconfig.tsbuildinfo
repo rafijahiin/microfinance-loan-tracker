@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/format.ts","./src/main.tsx","./src/useasync.ts","./src/vite-env.d.ts","./src/api/client.ts","./src/api/types.ts","./src/auth/authcontext.tsx","./src/pages/borrowerspage.tsx","./src/pages/dashboardpage.tsx","./src/pages/loandetailpage.tsx","./src/pages/loanspage.tsx","./src/pages/loginpage.tsx"],"version":"5.6.3"}

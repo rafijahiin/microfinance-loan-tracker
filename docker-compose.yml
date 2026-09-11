@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: loantracker
+      POSTGRES_USER: loantracker
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-loantracker}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    # Not published to the host by default. The application reaches it over the
+    # compose network; exposing 5432 would put a database on the developer's
+    # machine with a known password. Uncomment only if you want a SQL client.
+    # ports:
+    #   - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loantracker -d loantracker"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  backend:
+    build: ./backend
+    depends_on:
+      db:
+        # Waits for the database to accept connections, not merely for the
+        # container to exist. Without the condition the application starts
+        # first, Flyway cannot connect, and the stack comes up broken.
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/loantracker
+      DB_USER: loantracker
+      DB_PASSWORD: ${DB_PASSWORD:-loantracker}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env, see .env.example}
+      JWT_EXPIRY_MINUTES: ${JWT_EXPIRY_MINUTES:-120}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+
+volumes:
+  db-data:
