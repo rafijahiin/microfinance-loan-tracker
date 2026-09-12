@@ -66,10 +66,12 @@ export default function LoansPage() {
                 <tr key={loan.id}>
                   <td><Link to={`/loans/${loan.id}`}>{loan.loanNumber}</Link></td>
                   <td>{loan.borrowerName}</td>
-                  <td>
-                    {loan.termPeriods}{' '}
-                    {loan.frequency === 'WEEKLY' ? 'weekly' : 'monthly'}
-                  </td>
+                  {/* One text node, not three. "40" and "weekly" as separate
+                      nodes read identically on screen but are two unrelated
+                      strings to anything reading the DOM, tests included. */}
+                  <td>{`${loan.termPeriods} ${
+                    loan.frequency === 'WEEKLY' ? 'weekly' : 'monthly'
+                  }`}</td>
                   <td>{day(loan.disbursedOn)}</td>
                   <td className="num">{taka(loan.principal)}</td>
                   <td className="num">{taka(loan.outstanding)}</td>
