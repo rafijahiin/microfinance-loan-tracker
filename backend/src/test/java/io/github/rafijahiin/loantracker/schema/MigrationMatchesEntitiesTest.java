@@ -1,5 +1,6 @@
 package io.github.rafijahiin.loantracker.schema;
 
+import io.github.rafijahiin.loantracker.audit.AuditEvent;
 import io.github.rafijahiin.loantracker.borrower.Borrower;
 import io.github.rafijahiin.loantracker.loan.Instalment;
 import io.github.rafijahiin.loantracker.loan.Loan;
@@ -47,7 +48,7 @@ class MigrationMatchesEntitiesTest {
 
     private static final Class<?>[] ENTITIES = {
             PartnerOrganisation.class, AppUser.class, Borrower.class,
-            Loan.class, Instalment.class, Repayment.class,
+            Loan.class, Instalment.class, Repayment.class, AuditEvent.class,
     };
 
     private static final Pattern CREATE_TABLE =
@@ -176,28 +177,62 @@ class MigrationMatchesEntitiesTest {
         return m.find() ? Integer.parseInt(m.group(1)) : Integer.MAX_VALUE;
     }
 
-    /** Column names from the body of a CREATE TABLE, skipping table-level
-     *  constraints. */
+    /**
+     * Column names from the body of a CREATE TABLE, skipping table-level
+     * constraints.
+     *
+     * Splits on commas at nesting depth zero rather than on line breaks. A
+     * line-based reader looked correct until a CHECK constraint wrapped:
+     *
+     *     CONSTRAINT ck_audit_action CHECK (action IN (
+     *         'MEMBER_ENROLLED', 'LOAN_DISBURSED', ...
+     *     ))
+     *
+     * and the continuation line was read as a column named 'member_enrolled'.
+     * A guard that reports invented columns is worse than no guard, because
+     * the next person to meet it silences it.
+     */
     private Set<String> columnsOf(String statement, int openParen) {
         String body = statement.substring(openParen + 1, closingParen(statement, openParen));
         Set<String> columns = new TreeSet<>();
 
-        for (String rawLine : body.split("\\R")) {
-            String line = rawLine.trim();
-            if (line.isEmpty()) continue;
+        for (String entry : splitTopLevel(body)) {
+            String trimmed = entry.trim();
+            if (trimmed.isEmpty()) continue;
 
-            String upper = line.toUpperCase(Locale.ROOT);
+            String upper = trimmed.toUpperCase(Locale.ROOT);
             if (upper.startsWith("CONSTRAINT") || upper.startsWith("PRIMARY KEY")
                     || upper.startsWith("UNIQUE") || upper.startsWith("FOREIGN KEY")
-                    || upper.startsWith("CHECK") || line.startsWith(")")) {
+                    || upper.startsWith("CHECK")) {
                 continue;
             }
-            String first = line.split("[\\s(,]")[0].trim();
+            String first = trimmed.split("[\\s(,]")[0].trim();
             if (!first.isEmpty()) {
                 columns.add(first.toLowerCase(Locale.ROOT));
             }
         }
         return columns;
+    }
+
+    /** Commas inside parentheses belong to a type or a constraint rather than
+     *  to the column list: NUMERIC(15,2) and IN ('A','B') both contain them. */
+    private List<String> splitTopLevel(String body) {
+        List<String> parts = new ArrayList<>();
+        int depth = 0;
+        StringBuilder current = new StringBuilder();
+
+        for (char c : body.toCharArray()) {
+            if (c == '(') depth++;
+            if (c == ')') depth--;
+            if (c == ',' && depth == 0) {
+                parts.add(current.toString());
+                current.setLength(0);
+            } else {
+                current.append(c);
+            }
+        }
+        parts.add(current.toString());
+        return parts;
     }
 
     /** Index of the parenthesis closing the one at `open`. Needed because

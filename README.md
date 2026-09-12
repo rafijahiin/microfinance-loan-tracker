@@ -8,7 +8,7 @@ exactly one partner, and that boundary is what authorisation is drawn along.
 Spring Boot 3 and Java 21 on the back, React and TypeScript on the front,
 PostgreSQL underneath, the whole stack up with one command.
 
-**87 backend tests and 32 frontend tests, all passing.** `mvn test` needs nothing but a JDK.
+**97 backend tests and 48 frontend tests, all passing.** `mvn test` needs nothing but a JDK.
 
 ---
 
@@ -67,8 +67,8 @@ one origin and CORS is not involved in development.
 ### Tests
 
 ```bash
-cd backend  && mvn test         # 87 tests, in-memory H2, no setup
-cd frontend && npm test         # 32 tests
+cd backend  && mvn test         # 97 tests, in-memory H2, no setup
+cd frontend && npm test         # 48 tests
 cd frontend && npm run typecheck
 ```
 
@@ -161,6 +161,42 @@ collide as they should. Uniqueness is **per partner**: a woman can genuinely be 
 member of two organisations, and a global constraint would both block a
 legitimate enrolment and leak, through the rejection, that she is a member
 elsewhere. The duplicate error deliberately does not echo the number back.
+
+### Who did what
+
+`created_at` and `updated_at` say when a row last changed. They do not say who
+changed it, and after an update they no longer say what it said before. On a
+table of financial records that is the question that actually gets asked,
+months later, when a member disputes a receipt.
+
+So every write records a **domain event**: member enrolled, loan disbursed,
+repayment posted, loan written off. Deliberately not column diffs. "Receipt
+R-001, 3,000 posted against L-0001, by officer.rangpur" is what someone asks
+for; a row of before-and-after values answers a different question and buries
+this one.
+
+Four properties worth stating:
+
+- **Append-only.** No update path, no delete endpoint, no setters. A trail that
+  can be edited proves nothing, because the first question about any entry
+  would be whether it is the original.
+- **Same transaction as the change.** `Propagation.MANDATORY`, so an entry
+  cannot be written outside the transaction it describes and a rolled-back
+  change takes its entry with it. A trail asserting a repayment that never
+  landed is worse than no trail, because it would be believed.
+- **Scoped like everything else.** An officer sees their own partner's
+  activity. An unscoped trail would be the one place an officer could learn
+  about another organisation's lending.
+- **No secrets.** The enrolment entry carries the masked national ID that staff
+  already see, never the number that was typed. An audit table is a long-lived,
+  widely-read copy of whatever you put in it.
+
+The actor is stored as an email rather than a foreign key to `app_user`,
+because the trail has to outlive the account: a clerk who leaves still posted
+the receipts they posted.
+
+It is visible in two places: **Recent activity** on the portfolio page, and
+**History** on each loan.
 
 ### PAR 30
 
@@ -255,6 +291,7 @@ backend/src/main/java/io/github/rafijahiin/loantracker/
 ├── partner/     Partner organisations
 ├── borrower/    Members
 ├── loan/        Loans, instalments, repayments, schedules, portfolio
+├── audit/       The append-only trail of who did what
 └── config/      OpenAPI, demo seeder
 
 frontend/src/
@@ -296,6 +333,8 @@ handling are exercised rather than mocked away. The ones worth reading:
 | `GET` | `/api/loans/{id}/repayments` | |
 | `POST` | `/api/loans/{id}/write-off` | Admin only |
 | `GET` | `/api/portfolio/summary?asOf=` | Outstanding, arrears, PAR 30 |
+| `GET` | `/api/audit` | Recent activity, scoped. Read only by design |
+| `GET` | `/api/loans/{id}/audit` | That loan's history |
 
 Every failure returns the same shape, so a client never has to guess which of
 several error formats it is parsing:
@@ -330,6 +369,7 @@ can quote SQL, table names or borrower data. The detail goes to the log.
 | `PortfolioIntegrationTest` | PAR 30 on a fixed date with figures checkable by hand |
 | `MigrationMatchesEntitiesTest` | The Flyway migration and the entity mappings have not drifted |
 | `ConcurrentRepaymentTest` | A repayment advances the loan's version, and the second of two concurrent writers is refused rather than ignored |
+| `AuditTrailIntegrationTest` | Every write records its actor, the trail is scoped and append-only, a refused change leaves no entry, and no national ID reaches it |
 | `SmokeTest` | The application boots on a real port, serves health and OpenAPI, and authenticates over TCP |
 
 Two of these exist because of what the rest of the suite cannot see.
@@ -393,8 +433,6 @@ appears in the running application too.
 ## What I would do next
 
 - **Testcontainers in CI**, keeping H2 for the fast local loop.
-- **An outbox or audit table for repayments.** `created_at` tells you when a row
-  was written, not who changed what. Financial records get argued about.
 - **Recoveries against written-off loans**, which are posted separately from a
   schedule and are currently refused outright.
 - **Declining-balance products** alongside flat rate. The schedule generator is

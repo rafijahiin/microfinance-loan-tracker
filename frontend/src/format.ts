@@ -14,6 +14,17 @@ export function percent(fraction: string | number, digits = 1): string {
   return `${(n * 100).toFixed(digits)}%`
 }
 
+/** An instant, to the minute. Seconds are noise on an activity feed, and the
+ *  date is what someone reconciling a receipt is looking for. */
+export function when(iso: string | null): string {
+  if (!iso) return '\u2014'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} `
+    + `${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export function day(iso: string | null): string {
   if (!iso) return '\u2014'
   const [y, m, d] = iso.split('-')

@@ -1,5 +1,7 @@
 package io.github.rafijahiin.loantracker.loan;
 
+import io.github.rafijahiin.loantracker.audit.AuditAction;
+import io.github.rafijahiin.loantracker.audit.AuditService;
 import io.github.rafijahiin.loantracker.borrower.Borrower;
 import io.github.rafijahiin.loantracker.borrower.BorrowerRepository;
 import io.github.rafijahiin.loantracker.common.BusinessRuleException;
@@ -27,13 +29,16 @@ public class LoanService {
     private final BorrowerRepository borrowers;
     private final ScheduleGenerator scheduleGenerator;
     private final AccessGuard guard;
+    private final AuditService audit;
 
     public LoanService(LoanRepository loans, BorrowerRepository borrowers,
-                       ScheduleGenerator scheduleGenerator, AccessGuard guard) {
+                       ScheduleGenerator scheduleGenerator, AccessGuard guard,
+                       AuditService audit) {
         this.loans = loans;
         this.borrowers = borrowers;
         this.scheduleGenerator = scheduleGenerator;
         this.guard = guard;
+        this.audit = audit;
     }
 
     @Transactional
@@ -59,7 +64,21 @@ public class LoanService {
                         disbursedOn)
                 .forEach(loan::addInstalment);
 
-        return loans.save(loan);
+        Loan saved = loans.save(loan);
+
+        audit.record(caller, AuditAction.LOAN_DISBURSED, borrower.getPartnerId(),
+                AuditService.ENTITY_LOAN, saved.getId(),
+                "%s disbursed to %s: %s over %d %s instalments at %s%% flat"
+                        .formatted(saved.getLoanNumber(), borrower.getName(),
+                                saved.getPrincipal().toPlainString(),
+                                saved.getTermPeriods(),
+                                saved.getFrequency().name().toLowerCase(),
+                                saved.getAnnualRate()
+                                        .multiply(java.math.BigDecimal.valueOf(100))
+                                        .stripTrailingZeros().toPlainString()),
+                saved.getPrincipal());
+
+        return saved;
     }
 
     @Transactional(readOnly = true)
@@ -113,7 +132,20 @@ public class LoanService {
         if (loan.getStatus() == LoanStatus.WRITTEN_OFF) {
             throw new BusinessRuleException("This loan is already written off");
         }
+        BigDecimal lost = loan.getOutstanding();
         loan.setStatus(LoanStatus.WRITTEN_OFF);
-        return loans.save(loan);
+        Loan saved = loans.save(loan);
+
+        // The outstanding balance is captured at the moment of the decision.
+        // Reading it back later would give whatever the schedule says now, and
+        // the figure that matters is what was given up on the day.
+        audit.record(caller, AuditAction.LOAN_WRITTEN_OFF,
+                loan.getBorrower().getPartnerId(),
+                AuditService.ENTITY_LOAN, saved.getId(),
+                "%s written off with %s outstanding".formatted(
+                        saved.getLoanNumber(), lost.toPlainString()),
+                lost);
+
+        return saved;
     }
 }

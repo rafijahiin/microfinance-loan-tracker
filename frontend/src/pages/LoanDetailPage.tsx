@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api, RequestError } from '../api/client'
-import type { Instalment, Loan, Repayment } from '../api/types'
+import type { AuditEvent, Instalment, Loan, Repayment } from '../api/types'
+import { ActivityFeed } from '../components/ActivityFeed'
 import { useAsync } from '../useAsync'
 import { taka, day } from '../format'
 
@@ -19,6 +20,8 @@ export default function LoanDetailPage() {
   const loan = useAsync<Loan>(() => api.get<Loan>(`/api/loans/${id}`), [id])
   const history = useAsync<Repayment[]>(
     () => api.get<Repayment[]>(`/api/loans/${id}/repayments`), [id])
+  const trail = useAsync<AuditEvent[]>(
+    () => api.get<AuditEvent[]>(`/api/loans/${id}/audit`), [id])
 
   const [receiptNo, setReceiptNo] = useState('')
   const [amount, setAmount] = useState('')
@@ -40,6 +43,7 @@ export default function LoanDetailPage() {
       setAmount('')
       loan.reload()
       history.reload()
+      trail.reload()
     } catch (err) {
       // The server's own message is shown rather than a generic one: it is the
       // side that knows whether this was an overpayment, a duplicate receipt or
@@ -156,6 +160,19 @@ export default function LoanDetailPage() {
           </tbody>
         </table>
       </div>
+
+      <h2>History</h2>
+      <p className="sub" style={{ marginBottom: 12 }}>
+        Everything done to this loan, and by whom.
+      </p>
+      {trail.error ? (
+        <div className="error">{trail.error}</div>
+      ) : trail.loading ? (
+        <p className="notice">Loading history\u2026</p>
+      ) : (
+        <ActivityFeed events={trail.data ?? []}
+                      emptyMessage="Nothing recorded against this loan yet." />
+      )}
 
       <h2>Receipts</h2>
       {history.loading ? (

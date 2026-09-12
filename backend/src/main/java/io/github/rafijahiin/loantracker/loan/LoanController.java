@@ -1,5 +1,7 @@
 package io.github.rafijahiin.loantracker.loan;
 
+import io.github.rafijahiin.loantracker.audit.AuditEventDto;
+import io.github.rafijahiin.loantracker.audit.AuditService;
 import io.github.rafijahiin.loantracker.security.CurrentUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,12 +25,14 @@ public class LoanController {
 
     private final LoanService loans;
     private final RepaymentService repayments;
+    private final AuditService audit;
     private final CurrentUser currentUser;
 
     public LoanController(LoanService loans, RepaymentService repayments,
-                          CurrentUser currentUser) {
+                          AuditService audit, CurrentUser currentUser) {
         this.loans = loans;
         this.repayments = repayments;
+        this.audit = audit;
         this.currentUser = currentUser;
     }
 
@@ -98,5 +102,15 @@ public class LoanController {
     public List<RepaymentDto> history(@PathVariable Long id) {
         return repayments.history(currentUser.get(), id).stream()
                 .map(RepaymentDto::from).toList();
+    }
+
+    @GetMapping("/{id}/audit")
+    @Operation(summary = "Everything that has been done to this loan, and by whom")
+    public List<AuditEventDto> auditTrail(@PathVariable Long id) {
+        // Goes through LoanService.get first, so a caller cannot read another
+        // partner's history by asking for its loan id directly.
+        loans.get(currentUser.get(), id);
+        return audit.forLoan(currentUser.get(), id).stream()
+                .map(AuditEventDto::from).toList();
     }
 }

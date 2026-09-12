@@ -1,5 +1,7 @@
 package io.github.rafijahiin.loantracker.loan;
 
+import io.github.rafijahiin.loantracker.audit.AuditAction;
+import io.github.rafijahiin.loantracker.audit.AuditService;
 import io.github.rafijahiin.loantracker.common.BusinessRuleException;
 import io.github.rafijahiin.loantracker.common.Money;
 import io.github.rafijahiin.loantracker.security.AuthenticatedUser;
@@ -20,14 +22,16 @@ public class RepaymentService {
     private final LoanRepository loans;
     private final RepaymentRepository repayments;
     private final EntityManager entityManager;
+    private final AuditService audit;
 
     public RepaymentService(LoanService loanService, LoanRepository loans,
                             RepaymentRepository repayments,
-                            EntityManager entityManager) {
+                            EntityManager entityManager, AuditService audit) {
         this.loanService = loanService;
         this.loans = loans;
         this.repayments = repayments;
         this.entityManager = entityManager;
+        this.audit = audit;
     }
 
     /**
@@ -107,8 +111,18 @@ public class RepaymentService {
         }
         loans.save(loan);
 
-        return repayments.save(new Repayment(loan, receiptNo, receivedOn, payment,
-                caller.email()));
+        Repayment saved = repayments.save(new Repayment(loan, receiptNo, receivedOn,
+                payment, caller.email()));
+
+        audit.record(caller, AuditAction.REPAYMENT_POSTED,
+                loan.getBorrower().getPartnerId(),
+                AuditService.ENTITY_LOAN, loan.getId(),
+                "Receipt %s: %s posted against %s, leaving %s outstanding".formatted(
+                        receiptNo, payment.toPlainString(), loan.getLoanNumber(),
+                        loan.getOutstanding().toPlainString()),
+                payment);
+
+        return saved;
     }
 
     @Transactional(readOnly = true)

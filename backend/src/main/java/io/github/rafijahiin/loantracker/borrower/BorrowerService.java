@@ -1,5 +1,7 @@
 package io.github.rafijahiin.loantracker.borrower;
 
+import io.github.rafijahiin.loantracker.audit.AuditAction;
+import io.github.rafijahiin.loantracker.audit.AuditService;
 import io.github.rafijahiin.loantracker.common.BusinessRuleException;
 import io.github.rafijahiin.loantracker.common.NotFoundException;
 import io.github.rafijahiin.loantracker.partner.PartnerOrganisation;
@@ -20,13 +22,16 @@ public class BorrowerService {
     private final PartnerRepository partners;
     private final AccessGuard guard;
     private final NationalIdProtector nid;
+    private final AuditService audit;
 
     public BorrowerService(BorrowerRepository borrowers, PartnerRepository partners,
-                           AccessGuard guard, NationalIdProtector nid) {
+                           AccessGuard guard, NationalIdProtector nid,
+                           AuditService audit) {
         this.borrowers = borrowers;
         this.partners = partners;
         this.guard = guard;
         this.nid = nid;
+        this.audit = audit;
     }
 
     @Transactional
@@ -64,12 +69,24 @@ public class BorrowerService {
         }
 
         Borrower b = new Borrower(partner, memberCode, name, district, enrolledOn);
-        b.setNationalId(hash, nid.mask(nationalId));
+        String masked = nid.mask(nationalId);
+        b.setNationalId(hash, masked);
         b.setPhone(phone);
         b.setVillage(village);
         b.setUnion(union);
         b.setUpazila(upazila);
-        return borrowers.save(b);
+        Borrower saved = borrowers.save(b);
+
+        // The MASKED number, never the one that was typed. An audit table is a
+        // long-lived, widely-read copy of whatever goes into it, so it is the
+        // last place a national ID should end up.
+        audit.record(caller, AuditAction.MEMBER_ENROLLED, partnerId,
+                AuditService.ENTITY_BORROWER, saved.getId(),
+                "%s enrolled as %s (national ID %s)".formatted(
+                        saved.getName(), saved.getMemberCode(), masked),
+                null);
+
+        return saved;
     }
 
     @Transactional(readOnly = true)

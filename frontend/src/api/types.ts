@@ -68,6 +68,27 @@ export interface Loan {
   schedule: Instalment[] | null
 }
 
+export type AuditAction =
+  | 'MEMBER_ENROLLED'
+  | 'LOAN_DISBURSED'
+  | 'REPAYMENT_POSTED'
+  | 'LOAN_WRITTEN_OFF'
+
+/** One entry in the append-only trail. `actorEmail` rather than a user id,
+ *  because the record has to outlive the account. */
+export interface AuditEvent {
+  id: number
+  occurredAt: string
+  action: AuditAction
+  actionLabel: string
+  actorEmail: string
+  actorRole: Role
+  entityType: string
+  entityId: number | null
+  summary: string
+  amount: string | null
+}
+
 export interface Repayment {
   id: number
   receiptNo: string

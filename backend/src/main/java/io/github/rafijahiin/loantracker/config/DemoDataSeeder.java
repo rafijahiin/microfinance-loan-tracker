@@ -1,6 +1,8 @@
 package io.github.rafijahiin.loantracker.config;
 
 import io.github.rafijahiin.loantracker.borrower.Borrower;
+import io.github.rafijahiin.loantracker.audit.AuditAction;
+import io.github.rafijahiin.loantracker.audit.AuditService;
 import io.github.rafijahiin.loantracker.borrower.BorrowerRepository;
 import io.github.rafijahiin.loantracker.borrower.NationalIdProtector;
 import io.github.rafijahiin.loantracker.loan.*;
@@ -8,6 +10,7 @@ import io.github.rafijahiin.loantracker.partner.PartnerOrganisation;
 import io.github.rafijahiin.loantracker.partner.PartnerRepository;
 import io.github.rafijahiin.loantracker.user.AppUser;
 import io.github.rafijahiin.loantracker.user.AppUserRepository;
+import io.github.rafijahiin.loantracker.security.AuthenticatedUser;
 import io.github.rafijahiin.loantracker.user.Role;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,7 +19,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -44,17 +48,30 @@ public class DemoDataSeeder {
                                           RepaymentRepository repayments,
                                           ScheduleGenerator scheduleGenerator,
                                           NationalIdProtector nid,
-                                          PasswordEncoder encoder) {
-        return args -> seed(partners, users, borrowers, loans, repayments,
-                scheduleGenerator, nid, encoder);
+                                          AuditService audit,
+                                          PasswordEncoder encoder,
+                                          PlatformTransactionManager txManager) {
+        // Wrapped explicitly rather than annotated.
+        //
+        // This method used to be `@Transactional protected void seed(...)`
+        // called from the lambda below, which does nothing at all: Spring's
+        // transactional behaviour comes from a proxy, and a call from inside
+        // the same class never goes through it. The seeder had been running
+        // with no transaction since it was written, and nothing noticed because
+        // nothing needed one. Writing audit entries with MANDATORY propagation
+        // is what finally made it fail loudly.
+        TransactionTemplate tx = new TransactionTemplate(txManager);
+        return args -> tx.executeWithoutResult(status ->
+                seed(partners, users, borrowers, loans, repayments,
+                        scheduleGenerator, nid, audit, encoder));
     }
 
-    @Transactional
-    protected void seed(PartnerRepository partners, AppUserRepository users,
+    private void seed(PartnerRepository partners, AppUserRepository users,
                         BorrowerRepository borrowers, LoanRepository loans,
                         RepaymentRepository repayments,
                         ScheduleGenerator scheduleGenerator,
                         NationalIdProtector nid,
+                        AuditService audit,
                         PasswordEncoder encoder) {
 
         if (partners.count() > 0) {
@@ -108,6 +125,17 @@ public class DemoDataSeeder {
                         "L-2026-0006", "35000", "0.1200", 26, RepaymentFrequency.WEEKLY,
                         1, 0));
 
+        // The seeded portfolio gets a trail too, attributed to the officer who
+        // would have done the work. Without it the activity feed is empty on
+        // first run and the feature looks unbuilt rather than unused.
+        java.util.Map<Long, AuthenticatedUser> actors = java.util.Map.of(
+                shomota.getId(), new AuthenticatedUser(
+                        2L, "officer.rangpur@example.org", Role.PO_OFFICER,
+                        shomota.getId()),
+                nodi.getId(), new AuthenticatedUser(
+                        3L, "officer.barishal@example.org", Role.PO_OFFICER,
+                        nodi.getId()));
+
         int receipt = 1;
         for (Seed s : seeds) {
             LocalDate disbursed = today.minusMonths(s.disbursedMonthsAgo());
@@ -137,6 +165,29 @@ public class DemoDataSeeder {
                 loan.setStatus(LoanStatus.CLOSED);
             }
             loans.save(loan);
+
+            AuthenticatedUser actor = actors.get(s.po().getId());
+            audit.record(actor, AuditAction.MEMBER_ENROLLED, s.po().getId(),
+                    AuditService.ENTITY_BORROWER, b.getId(),
+                    "%s enrolled as %s (national ID %s)".formatted(
+                            b.getName(), b.getMemberCode(), b.getNationalIdMasked()),
+                    null);
+            audit.record(actor, AuditAction.LOAN_DISBURSED, s.po().getId(),
+                    AuditService.ENTITY_LOAN, loan.getId(),
+                    "%s disbursed to %s: %s over %d %s instalments".formatted(
+                            loan.getLoanNumber(), b.getName(),
+                            loan.getPrincipal().toPlainString(),
+                            loan.getTermPeriods(),
+                            loan.getFrequency().name().toLowerCase()),
+                    loan.getPrincipal());
+            if (s.instalmentsPaid() > 0) {
+                audit.record(actor, AuditAction.REPAYMENT_POSTED, s.po().getId(),
+                        AuditService.ENTITY_LOAN, loan.getId(),
+                        "%d instalments collected against %s, leaving %s outstanding"
+                                .formatted(s.instalmentsPaid(), loan.getLoanNumber(),
+                                        loan.getOutstanding().toPlainString()),
+                        loan.getTotalPaid());
+            }
         }
 
         log.info("Seeded {} partners, {} users, {} borrowers, {} loans.",

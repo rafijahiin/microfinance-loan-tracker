@@ -1,5 +1,6 @@
 package io.github.rafijahiin.loantracker.support;
 
+import io.github.rafijahiin.loantracker.audit.AuditEventRepository;
 import io.github.rafijahiin.loantracker.borrower.BorrowerRepository;
 import io.github.rafijahiin.loantracker.loan.LoanRepository;
 import io.github.rafijahiin.loantracker.loan.RepaymentRepository;
@@ -20,15 +21,18 @@ import org.springframework.stereotype.Component;
 @Component
 public class DatabaseCleaner {
 
+    private final AuditEventRepository auditEvents;
     private final RepaymentRepository repayments;
     private final LoanRepository loans;
     private final BorrowerRepository borrowers;
     private final AppUserRepository users;
     private final PartnerRepository partners;
 
-    public DatabaseCleaner(RepaymentRepository repayments, LoanRepository loans,
+    public DatabaseCleaner(AuditEventRepository auditEvents,
+                           RepaymentRepository repayments, LoanRepository loans,
                            BorrowerRepository borrowers, AppUserRepository users,
                            PartnerRepository partners) {
+        this.auditEvents = auditEvents;
         this.repayments = repayments;
         this.loans = loans;
         this.borrowers = borrowers;
@@ -39,6 +43,10 @@ public class DatabaseCleaner {
     /** Children before parents. Instalments are not deleted explicitly: they
      *  cascade from the loan, which is also how the application deletes them. */
     public void clean() {
+        // The audit table holds no foreign keys on purpose, so its position
+        // here is arbitrary. It is cleared first simply so a test never reads a
+        // previous test's activity feed.
+        auditEvents.deleteAll();
         repayments.deleteAll();
         loans.deleteAll();
         borrowers.deleteAll();

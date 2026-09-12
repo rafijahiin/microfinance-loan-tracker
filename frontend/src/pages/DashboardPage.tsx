@@ -1,11 +1,16 @@
 import { api } from '../api/client'
-import type { PortfolioSummary } from '../api/types'
+import type { AuditEvent, Page, PortfolioSummary } from '../api/types'
 import { useAsync } from '../useAsync'
 import { taka, percent, day } from '../format'
+import { ActivityFeed } from '../components/ActivityFeed'
 
 export default function DashboardPage() {
   const { data, error, loading } = useAsync<PortfolioSummary>(
     () => api.get<PortfolioSummary>('/api/portfolio/summary'),
+    [],
+  )
+  const activity = useAsync<Page<AuditEvent>>(
+    () => api.get<Page<AuditEvent>>('/api/audit?size=15'),
     [],
   )
 
@@ -44,6 +49,20 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      <h2>Recent activity</h2>
+      <p className="sub" style={{ marginBottom: 12 }}>
+        Who did what, in order. The trail is written in the same transaction as
+        the change it describes, so a refused payment leaves no entry claiming
+        it went through.
+      </p>
+      {activity.error ? (
+        <div className="error">{activity.error}</div>
+      ) : activity.loading ? (
+        <p className="notice">Loading activity\u2026</p>
+      ) : (
+        <ActivityFeed events={activity.data?.content ?? []} />
+      )}
 
       <h2>How PAR 30 is counted</h2>
       <div className="card" style={{ color: 'var(--ink-2)', lineHeight: 1.65 }}>
