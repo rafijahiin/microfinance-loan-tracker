@@ -14,13 +14,19 @@ PostgreSQL underneath, the whole stack up with one command.
 
 ## Running it
 
+The quickest way needs **only a JDK**. No database to install, no Docker.
+
 ```bash
-cp .env.example .env        # then put a real signing key in JWT_SECRET
-docker compose up --build
+cd backend  && mvn spring-boot:run -Plocal -Dspring-boot.run.profiles=local
+cd frontend && npm install && npm run dev
 ```
 
-- Application: <http://localhost:3000>
+- Application: <http://localhost:5173>
 - API documentation (Swagger UI): <http://localhost:8080/swagger-ui.html>
+
+That runs against in-memory H2 with demo data. For the real thing on
+PostgreSQL, or the whole stack in containers, see
+[Other ways to run it](#other-ways-to-run-it).
 
 Demo accounts, seeded when `SEED_DEMO_DATA=true`:
 
@@ -33,20 +39,27 @@ Demo accounts, seeded when `SEED_DEMO_DATA=true`:
 Sign in as an officer, then as the administrator, and compare the portfolio
 figures. That difference is the authorisation model working.
 
-### Without Docker, or without PostgreSQL
+### Other ways to run it
+
+**Against a real PostgreSQL.** Point it at any instance; Flyway creates the
+schema on first boot.
 
 ```bash
-# Needs only a JDK: in-memory H2, demo data, nothing to install.
-cd backend  && mvn spring-boot:run -Plocal -Dspring-boot.run.profiles=local
-cd frontend && npm install && npm run dev
+cd backend && DB_URL=jdbc:postgresql://localhost:5432/loantracker \
+              DB_USER=loantracker DB_PASSWORD=loantracker \
+              JWT_SECRET=$(openssl rand -base64 48) \
+              NID_PEPPER=$(openssl rand -base64 32) \
+              SEED_DEMO_DATA=true mvn spring-boot:run
 ```
 
-Against a real PostgreSQL instead:
+**The whole stack in containers.**
 
 ```bash
-cd backend && JWT_SECRET=$(openssl rand -base64 48) \
-              NID_PEPPER=$(openssl rand -base64 32) mvn spring-boot:run
+cp .env.example .env        # set JWT_SECRET and NID_PEPPER
+docker compose up --build
 ```
+
+Application on <http://localhost:3000>, API on <http://localhost:8080>.
 
 The Vite dev server proxies `/api` to `localhost:8080`, so the browser stays on
 one origin and CORS is not involved in development.
@@ -54,9 +67,22 @@ one origin and CORS is not involved in development.
 ### Tests
 
 ```bash
-cd backend && mvn test          # 84 tests
+cd backend && mvn test          # 84 tests, in-memory H2, no setup
 cd frontend && npm run typecheck
 ```
+
+The same suite also runs against a real PostgreSQL, with the real migrations
+and `ddl-auto=validate`, by overriding the datasource:
+
+```bash
+cd backend && TEST_DB_URL=jdbc:postgresql://localhost:5432/loantracker_test \
+              TEST_DB_DRIVER=org.postgresql.Driver \
+              TEST_DB_USER=loantracker TEST_DB_PASSWORD=loantracker \
+              TEST_DDL_AUTO=validate TEST_FLYWAY=true mvn test
+```
+
+CI runs both. **The PostgreSQL run is not ceremony: it has already caught two
+defects that H2 reported as passing.** See below.
 
 ---
 
@@ -292,12 +318,25 @@ dependency that would have failed the container healthcheck at
 The scoping tests are the ones worth reading first. A mistake there does not
 throw an error, it quietly shows one lender another lender's borrower list.
 
-**On the database used in tests.** The suite runs against in-memory H2 so that
-`mvn test` passes on a clean checkout with nothing installed but a JDK.
-Testcontainers against the real PostgreSQL image would be better in CI: it would
-also exercise the Flyway migrations and catch dialect differences. The honest
-consequence of the choice made here is that the migrations are exercised when
-the stack comes up under compose, not by the test suite.
+**On the two database runs.** Locally the suite uses in-memory H2, so
+`mvn test` passes on a clean checkout with nothing installed but a JDK. CI runs
+the identical suite a second time against a real PostgreSQL service with the
+real Flyway migrations and `ddl-auto=validate`. Every value in the test
+datasource config has an H2 default and an environment override, so there is
+one suite and no duplicated setup.
+
+That second run is there because **H2 is a liar by omission**, and it has proved
+it twice:
+
+- `GET /api/borrowers` with no search term returned **500 on PostgreSQL** while
+  passing on H2. A null bind parameter arrives untyped, and inside `lower()`
+  PostgreSQL infers `bytea`, so `lower(bytea) does not exist`. The fix was to
+  stop passing null at all.
+- `SmokeTest` deleted partners while borrowers still referenced them. H2 allowed
+  it; PostgreSQL refused, correctly. The deletion order now lives in one
+  `DatabaseCleaner` so two test classes cannot disagree about it.
+
+Neither defect was visible to any amount of H2 testing.
 
 ---
 

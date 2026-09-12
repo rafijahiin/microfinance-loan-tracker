@@ -32,12 +32,26 @@ public interface BorrowerRepository extends JpaRepository<Borrower, Long> {
      *  and filtered in Java. Filtering after the fetch is how a paginated
      *  endpoint starts returning half-empty pages, and how a forgotten check
      *  leaks another partner's members. */
+    /**
+     * `q` is never null: the service passes an empty string when no term was
+     * given, and an empty pattern matches everything.
+     *
+     * It used to read `(:q is null or lower(...) like ...)`, which worked under
+     * H2 and failed on PostgreSQL with "function lower(bytea) does not exist".
+     * A null bind parameter arrives untyped, PostgreSQL has to guess, and
+     * inside lower() it guesses bytea. Passing an empty string means the
+     * parameter always carries a text type, which is both the fix and one
+     * fewer branch.
+     *
+     * partnerId stays nullable because it is compared to a bigint column
+     * directly, so PostgreSQL infers the type from the other side.
+     */
     @EntityGraph(attributePaths = "partner")
     @Query("""
            select b from Borrower b
            where (:partnerId is null or b.partner.id = :partnerId)
-             and (:q is null or lower(b.name) like lower(concat('%', :q, '%'))
-                            or lower(b.memberCode) like lower(concat('%', :q, '%')))
+             and (lower(b.name) like lower(concat('%', :q, '%'))
+                  or lower(b.memberCode) like lower(concat('%', :q, '%')))
            """)
     Page<Borrower> search(Long partnerId, String q, Pageable pageable);
 

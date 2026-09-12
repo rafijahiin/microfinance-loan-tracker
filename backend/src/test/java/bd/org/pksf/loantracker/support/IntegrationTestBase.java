@@ -41,15 +41,14 @@ public abstract class IntegrationTestBase {
 
     protected static final String PASSWORD = "correct-horse-battery";
 
-    /** Wiped in dependency order before each test. Shared state between tests
-     *  is how a suite starts passing only in the order it was written. */
+    @Autowired protected DatabaseCleaner databaseCleaner;
+
+    /** Wiped before each test. Shared state between tests is how a suite starts
+     *  passing only in the order it was written. The order lives in
+     *  DatabaseCleaner so no two test classes can disagree about it. */
     @BeforeEach
     void resetDatabase() {
-        repayments.deleteAll();
-        loans.deleteAll();
-        borrowers.deleteAll();
-        users.deleteAll();
-        partners.deleteAll();
+        databaseCleaner.clean();
     }
 
     protected PartnerOrganisation partner(String code, String name, String district) {

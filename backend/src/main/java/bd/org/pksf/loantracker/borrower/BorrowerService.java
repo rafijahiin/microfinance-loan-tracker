@@ -82,6 +82,9 @@ public class BorrowerService {
 
     @Transactional(readOnly = true)
     public Page<Borrower> search(AuthenticatedUser caller, String q, Pageable pageable) {
-        return borrowers.search(guard.scopeOf(caller), q, pageable);
+        // Never null: see BorrowerRepository.search for why a null here breaks
+        // on PostgreSQL but not on H2.
+        String term = q == null ? "" : q.trim();
+        return borrowers.search(guard.scopeOf(caller), term, pageable);
     }
 }

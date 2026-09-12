@@ -33,6 +33,7 @@ class SmokeTest {
     private int port;
 
     @Autowired private TestRestTemplate rest;
+    @Autowired private bd.org.pksf.loantracker.support.DatabaseCleaner databaseCleaner;
     @Autowired private PartnerRepository partners;
     @Autowired private AppUserRepository users;
     @Autowired
@@ -44,8 +45,10 @@ class SmokeTest {
 
     @BeforeEach
     void seedOneOfficer() {
-        users.deleteAll();
-        partners.deleteAll();
+        // Deleting only users and partners left borrowers and loans from other
+        // test classes pointing at rows that were about to vanish. H2 tolerated
+        // it; PostgreSQL refused, correctly.
+        databaseCleaner.clean();
         PartnerOrganisation po = partners.save(
                 new PartnerOrganisation("PO-001", "Shomota", "Rangpur"));
         users.save(new AppUser("officer@example.org",
