@@ -1,0 +1,48 @@
+# The hosted demo: everything in memory, nothing to provision.
+#
+# A demo of a lending system does not need a durable database. Running on H2
+# with the seed data means one container, no managed Postgres to pay for or let
+# expire, and a known-good dataset on every boot. The cost is that the data
+# resets whenever the instance restarts, which for a demo is a feature: anyone
+# can post a repayment and the next visitor still sees a sensible portfolio.
+#
+# What it does NOT relax: the signing key and the national ID pepper are still
+# required from the environment. A demo that ships with a default key would
+# teach the wrong lesson to anyone reading the repository to see how it is done.
+spring:
+  datasource:
+    url: jdbc:h2:mem:loantracker;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      # The Flyway migrations are PostgreSQL-specific (partial indexes,
+      # ALTER COLUMN DROP DEFAULT), so the demo generates its schema from the
+      # mappings instead. The two are kept honest by
+      # MigrationMatchesEntitiesTest, and CI runs the whole suite against a real
+      # PostgreSQL with the real migrations on every push.
+      ddl-auto: create-drop
+    open-in-view: false
+  flyway:
+    enabled: false
+
+server:
+  port: ${PORT:8080}
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:}
+    expiry-minutes: ${JWT_EXPIRY_MINUTES:240}
+  nid:
+    pepper: ${NID_PEPPER:}
+  cors:
+    # The deployed frontend's origin. Not a wildcard: any site a signed-in
+    # reviewer happened to visit could otherwise call this API with their token.
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
+  seed-demo-data: true
+
+logging:
+  level:
+    root: WARN
+    io.github.rafijahiin.loantracker: INFO

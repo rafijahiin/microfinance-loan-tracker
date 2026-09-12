@@ -1,6 +1,11 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { RequestError } from '../api/client'
+
+/** How long a sign-in may take before we assume the host is asleep rather than
+ *  the network being slow. Free instances stop after about fifteen minutes
+ *  idle and take roughly a minute to come back. */
+const COLD_START_HINT_MS = 3000
 
 export default function LoginPage() {
   const { signIn } = useAuth()
@@ -8,16 +13,31 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [slow, setSlow] = useState(false)
+  const timer = useRef<number | undefined>(undefined)
+
+  // Clear the pending timer if the component goes away mid-request, so a
+  // resolved-or-unmounted sign-in cannot set state on a dead component.
+  useEffect(() => () => window.clearTimeout(timer.current), [])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
+    setSlow(false)
     setBusy(true)
+
+    // A visitor clicking Sign in on a sleeping free instance waits about a
+    // minute. Left to a spinner they conclude it is broken and leave, which is
+    // a worse outcome than telling them what is happening.
+    timer.current = window.setTimeout(() => setSlow(true), COLD_START_HINT_MS)
+
     try {
       await signIn(email, password)
     } catch (err) {
       setError(err instanceof RequestError ? err.message : 'Could not reach the server.')
     } finally {
+      window.clearTimeout(timer.current)
+      setSlow(false)
       setBusy(false)
     }
   }
@@ -49,8 +69,17 @@ export default function LoginPage() {
             />
           </div>
           <button type="submit" disabled={busy} style={{ width: '100%' }}>
-            {busy ? 'Signing in...' : 'Sign in'}
+            {busy ? 'Signing in…' : 'Sign in'}
           </button>
+          {slow && (
+            <p role="status" style={{
+              marginTop: 12, marginBottom: 0, fontSize: 12.5,
+              color: 'var(--ink-3)', lineHeight: 1.6,
+            }}>
+              Waking the demo server. It sleeps when idle and can take up to a
+              minute to start. This only happens on the first visit.
+            </p>
+          )}
         </form>
         <div className="demo-hint">
           Demo accounts, available when the stack is started with

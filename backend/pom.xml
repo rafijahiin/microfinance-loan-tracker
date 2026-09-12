@@ -105,13 +105,15 @@
 
 
   <profiles>
-    <!-- `mvn spring-boot:run -Plocal -Dspring-boot.run.profiles=local` starts
-         the service against in-memory H2 with demo data, so it can be run and
-         looked at with nothing installed but a JDK. H2 is confined to this
-         profile: the default build, and therefore the deployed jar, does not
-         carry it. -->
+    <!-- Puts H2 on the runtime classpath. Used by two things: running locally
+         with nothing installed but a JDK, and the hosted demo image, which runs
+         entirely in memory so there is no database to provision or expire.
+
+         Confined to this profile on purpose: a build without -Ph2 produces a
+         jar with no embedded database in it, which is what anything real
+         should ship. -->
     <profile>
-      <id>local</id>
+      <id>h2</id>
       <dependencies>
         <dependency>
           <groupId>com.h2database</groupId>

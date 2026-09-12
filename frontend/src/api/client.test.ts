@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { api, getToken, setToken, setUnauthorizedHandler, RequestError } from './client'
+import { api, getToken, setToken, setUnauthorizedHandler } from './client'
 import { stubFetch } from '../test/fetchMock'
 
 describe('api client', () => {
@@ -58,13 +58,30 @@ describe('api client', () => {
     })
   })
 
-  it('calls the unauthorized handler once on a 401, so a stale session clears', async () => {
+  it('clears the session on a 401 when a token was sent', async () => {
     const onUnauthorized = vi.fn()
     setUnauthorizedHandler(onUnauthorized)
+    setToken('a-stale-token')
     stubFetch(() => ({ status: 401, body: {} }))
 
-    await expect(api.get('/api/loans')).rejects.toBeInstanceOf(RequestError)
+    await expect(api.get('/api/loans')).rejects.toThrow(/session has expired/)
     expect(onUnauthorized).toHaveBeenCalledOnce()
+  })
+
+  it('leaves a refused sign-in alone, keeping the message the server sent', async () => {
+    // Signing in carries no token. Treating that 401 as an expired session
+    // told someone typing a wrong password that their session had expired,
+    // which is nonsense: they never had one.
+    const onUnauthorized = vi.fn()
+    setUnauthorizedHandler(onUnauthorized)
+    stubFetch(() => ({
+      status: 401,
+      body: { status: 401, message: 'Invalid email or password', fieldErrors: {} },
+    }))
+
+    await expect(api.post('/api/auth/login', {}))
+      .rejects.toThrow('Invalid email or password')
+    expect(onUnauthorized).not.toHaveBeenCalled()
   })
 
   it('survives an error response that is not JSON', async () => {

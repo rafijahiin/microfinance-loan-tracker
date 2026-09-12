@@ -1,0 +1,43 @@
+# The hosted demo image: the application and an in-memory database, nothing
+# else. No Postgres service to provision, nothing that expires after 90 days.
+#
+# Separate from the main Dockerfile on purpose. That one builds the jar anything
+# real would ship, with no embedded database in it. Mixing the two would mean
+# the production image quietly carried H2.
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /build
+
+COPY pom.xml .
+RUN mvn -B -q dependency:go-offline
+
+COPY src ./src
+# -Ph2 is what puts the in-memory database on the runtime classpath.
+RUN mvn -B -q clean package -DskipTests -Ph2
+
+FROM eclipse-temurin:21-jre-alpine AS runtime
+WORKDIR /app
+
+RUN addgroup -S app && adduser -S -G app app
+COPY --from=build /build/target/loan-tracker-1.0.0.jar app.jar
+USER app
+
+ENV SPRING_PROFILES_ACTIVE=demo
+# Container-aware heap sizing. Free tiers are memory-tight, and without this
+# the JVM reads the host's memory rather than the container limit and gets
+# killed by the OOM killer rather than starting.
+# Tuned for a 512 MB free instance, which this comfortably exceeds if left at
+# the defaults: the JVM was measured at ~370 MB resident before any limits.
+#   MaxRAMPercentage 50  caps the heap at ~256 MB, ample for a demo whose whole
+#                        dataset is six loans.
+#   UseSerialGC          one GC thread instead of several; on a shared vCPU the
+#                        parallel collectors cost memory and buy nothing here.
+#   TieredStopAtLevel=1  skips the expensive JIT tiers. Slower at peak, which
+#                        does not matter, and noticeably faster to start, which
+#                        does when every visit may be a cold start.
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=50.0 -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -Xss512k -Dspring.jmx.enabled=false"
+
+EXPOSE 8080
+
+# The port is supplied by the platform, so it is read at runtime rather than
+# baked in.
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar --server.port=${PORT:-8080}"]

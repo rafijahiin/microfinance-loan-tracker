@@ -54,7 +54,15 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   const res = await fetch(`${BASE}${path}`, { ...init, headers })
 
-  if (res.status === 401) {
+  // A 401 means two different things depending on whether we were carrying a
+  // token.
+  //
+  // With one, it has expired or been revoked: clear the session and say so.
+  // Without one, this is a sign-in that was refused, and the server's own
+  // message ("Invalid email or password") is the useful thing to show. Treating
+  // both the same told someone typing a wrong password that their session had
+  // expired, which is nonsense: they never had one.
+  if (res.status === 401 && token) {
     onUnauthorized?.()
     throw new RequestError(401, 'Your session has expired. Please sign in again.')
   }

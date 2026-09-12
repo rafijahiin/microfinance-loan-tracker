@@ -1,9 +1,10 @@
 # Local demonstration profile: in-memory H2, demo data, no database to install.
 #
-#   mvn spring-boot:run -Plocal -Dspring-boot.run.profiles=local
+#   mvn spring-boot:run -Ph2 -Dspring-boot.run.profiles=local
 #
-# The Maven profile of the same name is what puts H2 on the classpath, so the
-# default build and the shipped jar do not contain it.
+# The -Ph2 Maven profile is what puts H2 on the classpath, so a build without
+# it produces a jar with no embedded database. The hosted demo uses the same
+# Maven profile with the `demo` Spring profile; see application-demo.yml.
 #
 # The signing key below is a throwaway for this profile only. It is NOT a
 # fallback: the default configuration still has no secret at all and the

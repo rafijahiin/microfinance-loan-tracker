@@ -8,7 +8,7 @@ exactly one partner, and that boundary is what authorisation is drawn along.
 Spring Boot 3 and Java 21 on the back, React and TypeScript on the front,
 PostgreSQL underneath, the whole stack up with one command.
 
-**97 backend tests and 48 frontend tests, all passing.** `mvn test` needs nothing but a JDK.
+**97 backend tests and 54 frontend tests, all passing.** `mvn test` needs nothing but a JDK.
 
 ---
 
@@ -17,7 +17,7 @@ PostgreSQL underneath, the whole stack up with one command.
 The quickest way needs **only a JDK**. No database to install, no Docker.
 
 ```bash
-cd backend  && mvn spring-boot:run -Plocal -Dspring-boot.run.profiles=local
+cd backend  && mvn spring-boot:run -Ph2 -Dspring-boot.run.profiles=local
 cd frontend && npm install && npm run dev
 ```
 
@@ -52,6 +52,23 @@ cd backend && DB_URL=jdbc:postgresql://localhost:5432/loantracker \
               SEED_DEMO_DATA=true mvn spring-boot:run
 ```
 
+**The hosted demo.** `render.yaml` is a Render blueprint: one web service, no
+database. It runs the `demo` Spring profile, which is in-memory H2 with the
+seed data, so there is nothing to provision and nothing that expires after
+ninety days. `backend/Dockerfile.demo` is the image; it is separate from the
+main Dockerfile because that one builds the jar anything real would ship, with
+no embedded database in it.
+
+The free instance sleeps after about fifteen minutes idle, so the first visit
+after a quiet period waits roughly a minute while it starts. The login screen
+says so after three seconds rather than leaving a spinner, because a visitor
+staring at one concludes the thing is broken.
+
+The demo relaxes nothing about secrets: `JWT_SECRET` and `NID_PEPPER` are still
+required and the application refuses to start without them. Render generates
+both. A demo shipping a default key would teach the wrong lesson to anyone
+reading this repository to see how it is done.
+
 **The whole stack in containers.**
 
 ```bash
@@ -68,7 +85,7 @@ one origin and CORS is not involved in development.
 
 ```bash
 cd backend  && mvn test         # 97 tests, in-memory H2, no setup
-cd frontend && npm test         # 48 tests
+cd frontend && npm test         # 54 tests
 cd frontend && npm run typecheck
 ```
 
@@ -255,6 +272,12 @@ to find out.
 `app.jwt.secret` is missing or under 32 characters, and compose refuses to start
 without it. A committed fallback key is how a service ends up signing production
 tokens with a key that is public on GitHub.
+
+**A 401 means two different things, and the client tells them apart.** Carrying
+a token, it has expired: clear the session and say so. Carrying none, a sign-in
+was refused and the server's own message is the useful one. Treating both alike
+told someone typing a wrong password that their session had expired, which is
+nonsense to a person who has not signed in yet. A test found it.
 
 **Login gives one answer for "no such user", "wrong password" and "disabled".**
 Distinguishing them turns the endpoint into a way to enumerate who holds an
