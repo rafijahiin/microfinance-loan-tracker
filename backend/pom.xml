@@ -11,7 +11,7 @@
     <relativePath/>
   </parent>
 
-  <groupId>bd.org.pksf</groupId>
+  <groupId>io.github.rafijahiin</groupId>
   <artifactId>loan-tracker</artifactId>
   <version>1.0.0</version>
   <name>loan-tracker</name>

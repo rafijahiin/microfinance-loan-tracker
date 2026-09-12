@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { api } from '../api/client'
+import { Disclosure } from '../components/Disclosure'
+import { EnrolMemberForm } from '../components/EnrolMemberForm'
 import type { Borrower, Page } from '../api/types'
 import { useAsync } from '../useAsync'
 import { day } from '../format'
@@ -8,7 +10,7 @@ export default function BorrowersPage() {
   const [term, setTerm] = useState('')
   const [query, setQuery] = useState('')
 
-  const { data, error, loading } = useAsync<Page<Borrower>>(
+  const { data, error, loading, reload } = useAsync<Page<Borrower>>(
     () => api.get<Page<Borrower>>(
       `/api/borrowers?size=50${query ? `&q=${encodeURIComponent(query)}` : ''}`),
     [query],
@@ -21,6 +23,17 @@ export default function BorrowersPage() {
         Search by name or member code. National ID numbers are stored only as a
         keyed hash, so only the last four digits can ever be displayed.
       </p>
+
+      <Disclosure label="Enrol a member">
+        {(close) => (
+          <EnrolMemberForm
+            onEnrolled={() => {
+              close()
+              reload()
+            }}
+          />
+        )}
+      </Disclosure>
 
       <form
         className="row-actions"

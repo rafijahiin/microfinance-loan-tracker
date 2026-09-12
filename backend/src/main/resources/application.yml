@@ -62,4 +62,4 @@ app:
 
 logging:
   level:
-    bd.org.pksf.loantracker: ${LOG_LEVEL:INFO}
+    io.github.rafijahiin.loantracker: ${LOG_LEVEL:INFO}

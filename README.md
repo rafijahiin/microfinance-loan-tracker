@@ -8,7 +8,7 @@ exactly one partner, and that boundary is what authorisation is drawn along.
 Spring Boot 3 and Java 21 on the back, React and TypeScript on the front,
 PostgreSQL underneath, the whole stack up with one command.
 
-**84 tests, all passing.** `mvn test` needs nothing but a JDK.
+**87 backend tests and 32 frontend tests, all passing.** `mvn test` needs nothing but a JDK.
 
 ---
 
@@ -67,7 +67,8 @@ one origin and CORS is not involved in development.
 ### Tests
 
 ```bash
-cd backend && mvn test          # 84 tests, in-memory H2, no setup
+cd backend  && mvn test         # 87 tests, in-memory H2, no setup
+cd frontend && npm test         # 32 tests
 cd frontend && npm run typecheck
 ```
 
@@ -223,6 +224,16 @@ tokens with a key that is public on GitHub.
 Distinguishing them turns the endpoint into a way to enumerate who holds an
 account. There is a test asserting the two messages are byte-identical.
 
+**The loan carries an optimistic lock, and a repayment forces it forward.**
+Two clerks posting against one loan in the same second is a Thursday, not a
+thought experiment, and without this the second write wins silently: one receipt
+vanishes from the balance while staying in the cash book. The subtlety is that
+`@Version` alone would not help. A repayment usually touches only instalment
+rows, and modifying a child collection does not make the parent row dirty, so
+the version would never advance. `RepaymentService` takes
+`OPTIMISTIC_FORCE_INCREMENT` on the loan explicitly. A test removes that line
+and proves the suite notices.
+
 **The interest rate is a fraction, and the API enforces it.** `0.12` is twelve
 per cent, and the field is capped at `1.0000`. Without that bound a caller who
 means twelve per cent and sends `12` gets a loan at 1200 per cent, or, on an API
@@ -237,7 +248,7 @@ timeout collects the same money twice in the ledger.
 ## Layout
 
 ```
-backend/src/main/java/bd/org/pksf/loantracker/
+backend/src/main/java/io/github/rafijahiin/loantracker/
 ├── common/      Errors, the single ApiError shape, money helpers, auditing
 ├── security/    JWT issuing and parsing, the filter, the partner AccessGuard
 ├── user/        Accounts and roles
@@ -249,8 +260,23 @@ backend/src/main/java/bd/org/pksf/loantracker/
 frontend/src/
 ├── api/         Typed client and the API's response types
 ├── auth/        Session context
+├── components/  Enrol and disburse forms, field, disclosure
+├── test/        jsdom setup and the fetch stub
 └── pages/       Portfolio, loans, loan detail, members, login
 ```
+
+### Frontend tests
+
+32 of them, run by `npm test` and in CI. `fetchMock` stubs the network rather
+than the API client, so the bearer token, the single error shape and the 401
+handling are exercised rather than mocked away. The ones worth reading:
+
+- the disburse form sends `0.1200` when a clerk types `12`, which is the trap
+  the API's `1.0000` cap exists to close;
+- a failed write does not report success, because closing the panel and
+  reloading would tell a clerk a member was enrolled when she was not;
+- the client treats an environment with no `localStorage` as signed out rather
+  than throwing, which is not hypothetical: jsdom here has none.
 
 ### API
 
@@ -303,6 +329,7 @@ can quote SQL, table names or borrower data. The detail goes to the log.
 | `LoanLifecycleIntegrationTest` | Disburse to settlement over HTTP, overpayment, duplicate receipts, write-off, validation |
 | `PortfolioIntegrationTest` | PAR 30 on a fixed date with figures checkable by hand |
 | `MigrationMatchesEntitiesTest` | The Flyway migration and the entity mappings have not drifted |
+| `ConcurrentRepaymentTest` | A repayment advances the loan's version, and the second of two concurrent writers is refused rather than ignored |
 | `SmokeTest` | The application boots on a real port, serves health and OpenAPI, and authenticates over TCP |
 
 Two of these exist because of what the rest of the suite cannot see.
@@ -366,9 +393,6 @@ appears in the running application too.
 ## What I would do next
 
 - **Testcontainers in CI**, keeping H2 for the fast local loop.
-- **Optimistic locking** (`@Version`) on `Loan`. Two clerks posting against the
-  same loan at the same instant is a real scenario at a branch, and today the
-  second write wins silently.
 - **An outbox or audit table for repayments.** `created_at` tells you when a row
   was written, not who changed what. Financial records get argued about.
 - **Recoveries against written-off loans**, which are posted separately from a

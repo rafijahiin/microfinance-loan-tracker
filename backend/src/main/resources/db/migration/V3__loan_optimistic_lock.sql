@@ -1,0 +1,11 @@
+-- Optimistic lock on the loan aggregate.
+--
+-- Two clerks posting a repayment against the same loan at the same instant
+-- would otherwise both read the same outstanding balance and the second commit
+-- would silently overwrite the first: one receipt disappears from the balance
+-- while staying in the cash book.
+--
+-- The default exists so that rows written before this migration, and any row
+-- inserted by hand during support work, start at a valid version. Hibernate
+-- always supplies the value itself on insert.
+ALTER TABLE loan ADD COLUMN version BIGINT NOT NULL DEFAULT 0;

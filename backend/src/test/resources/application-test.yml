@@ -46,4 +46,4 @@ app:
 logging:
   level:
     root: WARN
-    bd.org.pksf.loantracker: INFO
+    io.github.rafijahiin.loantracker: INFO
