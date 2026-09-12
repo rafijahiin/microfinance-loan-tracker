@@ -7,6 +7,22 @@ import { RequestError } from '../api/client'
  *  idle and take roughly a minute to come back. */
 const COLD_START_HINT_MS = 3000
 
+/**
+ * Only a remote API can be asleep.
+ *
+ * Running locally the backend is a process on the same machine, and telling
+ * someone their demo server is waking up would simply be untrue.
+ * VITE_API_BASE_URL is empty in development and set only when the frontend is
+ * deployed apart from the API.
+ *
+ * Read at call time rather than captured in a module-level constant: a const
+ * evaluated at import cannot be varied by a test, which is how a branch ends up
+ * shipping untested.
+ */
+function talksToARemoteApi(): boolean {
+  return Boolean(import.meta.env.VITE_API_BASE_URL)
+}
+
 export default function LoginPage() {
   const { signIn } = useAuth()
   const [email, setEmail] = useState('')
@@ -29,7 +45,9 @@ export default function LoginPage() {
     // A visitor clicking Sign in on a sleeping free instance waits about a
     // minute. Left to a spinner they conclude it is broken and leave, which is
     // a worse outcome than telling them what is happening.
-    timer.current = window.setTimeout(() => setSlow(true), COLD_START_HINT_MS)
+    if (talksToARemoteApi()) {
+      timer.current = window.setTimeout(() => setSlow(true), COLD_START_HINT_MS)
+    }
 
     try {
       await signIn(email, password)

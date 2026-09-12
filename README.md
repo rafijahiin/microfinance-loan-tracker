@@ -8,7 +8,7 @@ exactly one partner, and that boundary is what authorisation is drawn along.
 Spring Boot 3 and Java 21 on the back, React and TypeScript on the front,
 PostgreSQL underneath, the whole stack up with one command.
 
-**97 backend tests and 54 frontend tests, all passing.** `mvn test` needs nothing but a JDK.
+**97 backend tests and 55 frontend tests, all passing.** `mvn test` needs nothing but a JDK.
 
 ---
 
@@ -85,7 +85,7 @@ one origin and CORS is not involved in development.
 
 ```bash
 cd backend  && mvn test         # 97 tests, in-memory H2, no setup
-cd frontend && npm test         # 54 tests
+cd frontend && npm test         # 55 tests
 cd frontend && npm run typecheck
 ```
 

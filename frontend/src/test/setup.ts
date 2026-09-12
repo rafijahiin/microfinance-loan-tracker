@@ -35,6 +35,9 @@ afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  // Without this a stubbed import.meta.env value survives into the next test,
+  // which is how one test's environment silently decides another's outcome.
+  vi.unstubAllEnvs()
   try {
     localStorage.clear()
   } catch {

@@ -75,6 +75,11 @@ describe('LoginPage', () => {
     async () => {
       // A free instance sleeps after fifteen minutes and takes about a minute
       // to return. A visitor staring at a spinner concludes it is broken.
+      //
+      // Only applies to a remote API. Locally the backend is on the same
+      // machine and cannot be asleep, so the notice is gated on
+      // VITE_API_BASE_URL being set, which is what this stubs.
+      vi.stubEnv('VITE_API_BASE_URL', 'https://api.example.test')
       vi.useFakeTimers({ shouldAdvanceTime: true })
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
 
@@ -98,6 +103,27 @@ describe('LoginPage', () => {
       release?.()
       vi.useRealTimers()
     })
+
+  it('never mentions a demo server when the API is local', async () => {
+    // VITE_API_BASE_URL is empty in development, so the notice must not appear
+    // however long the local backend takes.
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+
+    let release: (() => void) | undefined
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      await new Promise<void>((resolve) => { release = resolve })
+      return { ok: true, status: 200, json: async () => ({}) } as Response
+    }))
+
+    renderLogin()
+    await fillAndSubmit(user)
+    await vi.advanceTimersByTimeAsync(10000)
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    release?.()
+    vi.useRealTimers()
+  })
 
   it('does not cry cold start when the server answers promptly', async () => {
     const user = userEvent.setup()
